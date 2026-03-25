@@ -25,7 +25,7 @@ Veja o arquivo [DEPENDENCIES.md](./DEPENDENCIES.md) para a lista completa.
 
 1. Clone o repositório:
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/lvs29/sonar
    cd Sonar
    ```
 
