@@ -1,0 +1,18 @@
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+<g transform="translate(16, 16)">
+  <circle cx="0" cy="0" r="15"   fill="#111" stroke="#444" stroke-width="1.5"/>
+  <circle cx="0" cy="0" r="13.5" fill="#0a0a0a"/>
+  <circle cx="0" cy="0" r="4.5"  fill="none" stroke="#333" stroke-width="0.8"/>
+  <circle cx="0" cy="0" r="9"    fill="none" stroke="#333" stroke-width="0.8"/>
+  <circle cx="0" cy="0" r="13.5" fill="none" stroke="#333" stroke-width="0.8"/>
+  <line x1="-13.5" y1="0"     x2="13.5" y2="0"     stroke="#333" stroke-width="0.8"/>
+  <line x1="0"     y1="-13.5" x2="0"    y2="13.5"  stroke="#333" stroke-width="0.8"/>
+  <path d="M 0,0 L 13.5,0 A 13.5,13.5 0 0,0 9.5,-9.5 Z" fill="#f5a623" opacity="0.15"/>
+  <line x1="0" y1="0" x2="13" y2="0" stroke="#f5a623" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="6.5" cy="-3.5" r="1.8" fill="#f5a623"/>
+  <circle cx="-5"  cy="5.5"  r="1.2" fill="#f5a623" opacity="0.8"/>
+  <circle cx="9"   cy="4"    r="1"   fill="#f5a623" opacity="0.6"/>
+  <circle cx="0" cy="0" r="1.8" fill="#f5a623"/>
+  <circle cx="0" cy="0" r="0.9" fill="#fff"/>
+</g>
+</svg>

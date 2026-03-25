@@ -1,0 +1,307 @@
+<!-- static/index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sonar</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="shortcut icon" href="/logo.svg" type="image/x-icon">
+</head>
+<body>
+
+<div id="app">
+  <!-- sidebar -->
+  <div id="sidebar">
+    <div id="logo"><img src="/logo.svg" style="height: 30px;"> SONAR</div>
+
+    <div id="dl-progress-bar-container">
+        <div id="dl-progress-label">
+            <span id="dl-progress-text">Baixando...</span>
+            <span id="dl-progress-pct">0%</span>
+        </div>
+        <div id="dl-progress-track" onclick="showView('downloads')" title="Ver downloads">
+            <div id="dl-progress-fill" style="width:0%"></div>
+        </div>
+    </div>
+
+    <div class="nav-section">Menu</div>
+    <div class="nav-item active" data-view="playlists"><i class="fa-solid fa-book"></i> Biblioteca</div>
+    <div class="nav-item" data-view="downloads"><i class="fa-solid fa-download"></i> Downloads</div>
+    <div class="nav-item" data-view="manage"><i class="fa-solid fa-cog"></i> Gerenciar</div>
+
+    <div class="nav-section" style="margin-top:12px;">Minhas Playlists</div>
+    <div id="playlist-list"></div>
+  </div>
+
+  <!-- main -->
+  <div id="main">
+    <!-- busca global — sempre visível na biblioteca e resultados -->
+    <div id="search-bar" style="padding:8px 48px;border-bottom:1px solid var(--border);">
+        <div style="position:relative;">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:13px;"></i>
+            <input id="search-input" autocomplete="off" placeholder="Buscar músicas..."
+                   style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;
+                          padding:7px 10px 7px 32px;color:var(--text);font-size:13px;outline:none;">
+        </div>
+    </div>
+
+    <!-- view: playlists -->
+    <div class="view active" id="view-playlists">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:32px 24px 0;">
+            <div style="font-size:22px;font-weight:700;">Biblioteca</div>
+            <button class="btn btn-accent" onclick="openAllTracks()">
+                <i class="fa-solid fa-music"></i> Todas as músicas
+            </button>
+        </div>
+        <div id="home-featured" style="padding:24px;"></div>
+        <div style="padding:0 24px 12px;font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:1px;">Todas as playlists</div>
+        <div id="home-list" style="padding:0 24px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+
+    <div class="view" id="view-search">
+        <div style="padding:24px 24px 0;font-size:18px;font-weight:700;" id="search-results-title">Resultados</div>
+        <div class="track-list-header">
+            <div>#</div><div></div><div>Título</div><div>Álbum</div><div>Plays</div><div style="text-align:right;">Dur.</div><div></div>
+        </div>
+        <div id="search-results-list"></div>
+    </div>
+
+    <!-- view: playlist detail -->
+    <div class="view" id="view-playlist">
+      <div class="playlist-header">
+          <img id="pl-cover" class="playlist-cover" src="" alt="">
+          <div style="flex:1;">
+              <div class="playlist-info-label">Playlist</div>
+              <div class="playlist-info-name" id="pl-name"></div>
+              <div id="pl-description" style="font-size:13px;color:var(--text-2);margin-bottom:4px;display:none;"></div>
+              <div class="playlist-info-meta" id="pl-meta"></div>
+              <div id="pl-actions" style="margin-top:12px;"></div>
+          </div>
+      </div>
+        <div class="track-list-header">
+            <div>#</div><div></div><div>Título</div><div>Álbum</div><div>Plays</div><div style="text-align:right;">Dur.</div><div></div>
+        </div>
+      <div id="track-list"></div>
+    </div>
+
+    <!-- view: downloads -->
+    <div class="view" id="view-downloads">
+      <div style="padding:24px 24px 0;font-size:18px;font-weight:700;">Downloads</div>
+      <div class="dl-stats">
+        <div class="dl-stat"><div class="dl-stat-label">Pendente</div><div class="dl-stat-value accent" id="dl-pending">—</div></div>
+        <div class="dl-stat"><div class="dl-stat-label">Baixando</div><div class="dl-stat-value accent" id="dl-downloading">—</div></div>
+        <div class="dl-stat"><div class="dl-stat-label">Concluído</div><div class="dl-stat-value success" id="dl-done">—</div></div>
+        <div class="dl-stat"><div class="dl-stat-label">Falhou</div><div class="dl-stat-value danger" id="dl-failed">—</div></div>
+      </div>
+      <div class="dl-current" id="dl-current" style="display:none;">
+        <div class="dl-current-label">Baixando agora</div>
+        <div class="dl-current-track" id="dl-current-track"></div>
+      </div>
+    </div>
+
+    <!-- view: manage -->
+    <div class="view" id="view-manage">
+        <div class="manage-section">
+            <h2>Configurações</h2>
+            <div style="max-width:480px;display:flex;flex-direction:column;gap:16px;">
+                <div>
+                    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">Host</div>
+                    <input class="url-input" id="cfg-host" style="width:100%;" placeholder="0.0.0.0">
+                </div>
+                <div>
+                    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">Porta</div>
+                    <input class="url-input" id="cfg-port" style="width:100%;" type="number" placeholder="8000">
+                </div>
+                <div>
+                    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">Browser (yt-dlp cookies)</div>
+                    <input class="url-input" id="cfg-browser" style="width:100%;" placeholder="chromium">
+                </div>
+                <div>
+                    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">CLIENT ID (Spotify)</div>
+                    <input class="url-input" id="cfg-client-id" style="width:100%;" placeholder="">
+                </div>
+                <div>
+                    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">CLIENT SECRET (Spotify)</div>
+                    <input class="url-input" id="cfg-client-secret" style="width:100%;" placeholder="">
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <button class="btn btn-accent" onclick="saveSettings()">Salvar</button>
+                    <span id="cfg-status" style="font-size:12px;color:var(--text-3);"></span>
+                </div>
+                <p style="font-size:12px;color:var(--text-3);">Alterações de host e porta só têm efeito após reiniciar o servidor.</p>
+            </div>
+        </div>
+        <div class="manage-section">
+            <h2>Adicionar playlist</h2>
+            <div style="max-width:500px;">
+                <div style="margin-bottom:20px;">
+                    <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">URL ou ID da playlist do Spotify</div>
+                    <input class="url-input" id="add-playlist-input" style="width:100%;font-size:14px;padding:10px 14px;" autocomplete="off"
+                        placeholder="https://open.spotify.com/playlist/... ou ID direto">
+                </div>
+                <div id="add-playlist-preview" style="display:none;margin-bottom:20px;background:var(--bg-2);border-radius:8px;padding:16px;align-items:center;gap:16px;">
+                    <img id="preview-cover" style="width:64px;height:64px;border-radius:6px;object-fit:cover;background:var(--bg-3);">
+                    <div>
+                        <div id="preview-name" style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;"></div>
+                        <div id="preview-meta" style="font-size:12px;color:var(--text-3);"></div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:8px;">
+                    <button class="btn" id="btn-preview-playlist">Buscar</button>
+                    <button class="btn btn-accent" id="btn-confirm-add" style="display:none;">Adicionar e sincronizar</button>
+                </div>
+                <div id="add-playlist-status" style="margin-top:16px;font-size:13px;color:var(--text-3);"></div>
+            </div>
+        </div>
+      <div class="manage-section">
+        <h2>Falharam no download</h2>
+        <div id="failed-list"></div>
+        <button class="btn btn-accent" style="margin-top:12px;" onclick="retryFailed()">Tentar novamente todos</button>
+      </div>
+      <div class="manage-section">
+        <h2>Tracks órfãs</h2>
+        <div id="orphan-list"></div>
+        <button class="btn btn-danger" style="margin-top:12px;" onclick="deleteOrphans()">Remover do banco</button>
+        <button class="btn btn-danger" style="margin-top:12px;margin-left:8px;" onclick="deleteOrphansWithFiles()">Remover + arquivos</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- player -->
+<div id="player">
+  <img id="player-cover" src="" alt="">
+
+  <!-- mini player mobile -->
+  <div id="player-mini" onclick="togglePlayerExpand()">
+      <img id="player-cover-mini" src="" style="width:36px;height:36px;border-radius:6px;object-fit:cover;background:var(--bg-3);flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+          <div id="player-title-mini" style="font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
+          <div id="player-artist-mini" style="font-size:11px;color:var(--text-2);"></div>
+      </div>
+      <button id="btn-play-mini" onclick="event.stopPropagation();document.getElementById('btn-play').click()" style="width:34px;height:34px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <i id="icon-play-mini" class="fa-solid fa-play" style="color:#000;font-size:13px;"></i>
+          <i id="icon-pause-mini" class="fa-solid fa-pause" style="color:#000;font-size:13px;display:none;"></i>
+      </button>
+      <button class="ctrl-btn" onclick="event.stopPropagation();document.getElementById('btn-next').click()" style="color:var(--text-2);">
+          <i class="fa-solid fa-forward-step"></i>
+      </button>
+  </div>
+
+  <!-- player expandido mobile -->
+  <div id="player-full">
+      <div style="display:flex;gap:16px;align-items:center;">
+        <button class="ctrl-btn" onclick="togglePlayerExpand()" style="font-size:18px;color:var(--text-3);">
+            <i class="fa-solid fa-chevron-down"></i>
+        </button>
+          <img id="player-cover-full" src="" style="width:56px;height:56px;border-radius:8px;object-fit:cover;background:var(--bg-3);flex-shrink:0;">
+          <div style="flex:1;min-width:0;">
+              <div id="player-title-full" style="font-size:15px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">—</div>
+              <div id="player-artist-full" style="font-size:12px;color:var(--text-2);"></div>
+          </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:11px;color:var(--text-3);min-width:32px;text-align:right;" id="time-current-full">0:00</span>
+              <div id="progress-bar-full" style="flex:1;height:4px;background:var(--bg-3);border-radius:2px;cursor:pointer;">
+                  <div id="progress-fill-full" style="height:100%;background:var(--accent);border-radius:2px;width:0%;"></div>
+              </div>
+              <span style="font-size:11px;color:var(--text-3);min-width:32px;" id="time-total-full">0:00</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:24px;">
+              <button class="ctrl-btn" id="btn-shuffle-mobile" onclick="document.getElementById('btn-shuffle').click()">
+                  <i class="fa-solid fa-shuffle"></i>
+              </button>
+              <button class="ctrl-btn" onclick="document.getElementById('btn-prev').click()">
+                  <i class="fa-solid fa-backward-step"></i>
+              </button>
+              <button id="btn-play-full" onclick="document.getElementById('btn-play').click()" style="width:48px;height:48px;border-radius:50%;background:var(--accent);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+                  <i id="icon-play-full" class="fa-solid fa-play" style="color:#000;font-size:16px;"></i>
+                  <i id="icon-pause-full" class="fa-solid fa-pause" style="color:#000;font-size:16px;display:none;"></i>
+              </button>
+              <button class="ctrl-btn" onclick="document.getElementById('btn-next').click()">
+                  <i class="fa-solid fa-forward-step"></i>
+              </button>
+              <button class="ctrl-btn" id="btn-loop-mobile" onclick="document.getElementById('btn-loop').click()">
+                  <i class="fa-solid fa-repeat"></i>
+              </button>
+          </div>
+      </div>
+  </div>
+
+  <div id="player-info">
+    <div id="player-title">—</div>
+    <div id="player-artist"></div>
+  </div>
+
+  <div id="player-controls">
+    <div class="ctrl-buttons">
+      <button class="ctrl-btn" id="btn-prev" title="Anterior">
+          <i class="fa-solid fa-backward-step"></i>
+      </button>
+      <button id="btn-play">
+          <i id="icon-play" class="fa-solid fa-play"></i>
+          <i id="icon-pause" class="fa-solid fa-pause" style="display:none"></i>
+      </button>
+      <button class="ctrl-btn" id="btn-next" title="Próxima">
+          <i class="fa-solid fa-forward-step"></i>
+      </button>
+    </div>
+    <div class="progress-row">
+      <span class="time-label" id="time-current">0:00</span>
+      <div id="progress-bar"><div id="progress-fill"></div></div>
+      <span class="time-label" id="time-total">0:00</span>
+    </div>
+  </div>
+
+
+  <button class="ctrl-btn" id="btn-loop" title="Loop">
+      <i class="fa-solid fa-repeat"></i>
+  </button>
+  <button class="ctrl-btn" id="btn-shuffle" onclick="toggleShuffle()" title="Aleatório" style="color:var(--text-3);">
+      <i class="fa-solid fa-shuffle"></i>
+  </button>
+  <button class="ctrl-btn" id="btn-queue" onclick="QueuePanel.toggle()" title="Fila">
+      <i class="fa-solid fa-list"></i>
+  </button>
+
+  <div id="player-volume">
+      <i class="fa-solid fa-volume-low" style="font-size:14px;color:var(--text-3);"></i>
+      <input type="range" id="volume-slider" min="0" max="100" value="100">
+  </div>
+</div>
+
+<div id="queue-panel" style="display:none;position:fixed;right:0;top:0;bottom:76px;width:300px;background:#0f0f0f;border-left:1px solid var(--border);flex-direction:column;z-index:200;"></div>
+
+<!-- bottom nav — só aparece no mobile -->
+<div id="bottom-nav">
+    <div class="bottom-nav-item active" data-view="playlists" onclick="showView('playlists')">
+        <i class="fa-solid fa-folder"></i>
+        <span>Biblioteca</span>
+    </div>
+    <div class="bottom-nav-item" data-view="downloads" onclick="showView('downloads')">
+        <i class="fa-solid fa-download"></i>
+        <span>Downloads</span>
+    </div>
+    <div class="bottom-nav-item" data-view="manage" onclick="showView('manage')">
+        <i class="fa-solid fa-gear"></i>
+        <span>Gerenciar</span>
+    </div>
+    <div class="bottom-nav-item" onclick="QueuePanel.toggle()">
+        <i class="fa-solid fa-list"></i>
+        <span>Fila</span>
+    </div>
+</div>
+
+<audio id="audio"></audio>
+
+<script src="/js/api.js"></script>
+<script src="/js/queue.js"></script>
+<script src="/js/player.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
