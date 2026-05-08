@@ -360,7 +360,19 @@ body {
     text-shadow: 0 0 10px rgba(245, 166, 35, 0.35);
     transform: translateX(2px);
 }
-.track-artist { font-size: 12px; color: var(--text-2); }
+.track-artist {
+    font-size: 12px;
+    color: var(--text-2);
+    max-width: 500px; /* ajusta conforme necessário */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.track-item:hover .track-artist {
+    max-width: 100%; /* expande no hover */
+    white-space: normal;
+}
 .track-album { font-size: 12px; color: var(--text-3); }
 .track-duration { font-size: 12px; color: var(--text-3); text-align: right; }
 .track-not-downloaded { opacity: 0.4; cursor: default; }
@@ -1018,7 +1030,6 @@ body {
     border-color: var(--accent-dim);
 }
 
-#search-bar { display: none; }
 #main.show-search #search-bar { display: block; }
 
 @media (max-width: 768px) {
@@ -1187,3 +1198,92 @@ body {
     #bottom-nav { display: none !important; }
 }
  
+
+#search-bar {
+  padding: 8px;
+  display: flex;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-wrapper {
+  width: 100%;
+  padding: 0 12px;
+  position: relative;
+}
+
+/* caixa de modos de busca */
+.search-mode-box {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border-right: 1px solid var(--border);
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.search-mode-select {
+  width: 70px;
+  font-size: 14px;
+  display: flex;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.search-mode-select:hover {
+  background: var(--bg-hover);
+}
+
+.search-mode-select:focus {
+  background: var(--bg-hover);
+  box-shadow: 0 0 0 1px var(--accent-dim);
+}
+
+.search-mode-select option {
+  background: var(--bg-2);
+  color: var(--text);
+}
+
+#search-input {
+  width: 80%;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 10px 7px;
+  margin-left: 88px;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+#search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim) inset;
+}
+
+.ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--text-2);
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+    white-space: nowrap;
+}
+
+.ctx-item:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+}
+
+.ctx-has-sub:hover { background: var(--bg-hover); }

@@ -51,13 +51,13 @@ const Queue = (() => {
         if (shuffleOn && fromDownloadedList) {
             const track = playlistTracks[index];
             const shuffledIdx = shuffledTracks.findIndex(
-                t => t.spotify_id === track.spotify_id
+                t => t.id === track.id
             );
             if (shuffledIdx >= 0) {
                 currentIndex = shuffledIdx;
             } else {
                 const rest = shuffledTracks.filter(
-                    t => t.spotify_id !== track.spotify_id
+                    t => t.id !== track.id
                 );
                 shuffledTracks = [track, ...rest];
                 currentIndex   = 0;
@@ -125,7 +125,7 @@ const Queue = (() => {
         if (shuffleOn) {
             const current = getCurrent();
             const rest = playlistTracks.filter(t =>
-                !current || t.spotify_id !== current.spotify_id
+                !current || t.id !== current.id
             );
             for (let i = rest.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -137,7 +137,7 @@ const Queue = (() => {
             const current = getCurrent();
             if (current) {
                 currentIndex = playlistTracks.findIndex(
-                    t => t.spotify_id === current.spotify_id
+                    t => t.id === current.id
                 );
             }
         }
@@ -176,13 +176,13 @@ const Queue = (() => {
         if (!item) return;
         if (item._qtype === "manual") {
             // acha o índice real na fila manual
-            const mi = manualTracks.findIndex(t => t.spotify_id === item.spotify_id);
+            const mi = manualTracks.findIndex(t => t.id === item.id);
             if (mi >= 0) manualTracks.splice(mi, 1);
         } else {
             // remove da playlist promovendo pra manual as anteriores e skipando essa
             // na prática só avança o índice pra pular ela
             const active = getActive();
-            const pi = active.findIndex((t, i) => i > currentIndex && t.spotify_id === item.spotify_id);
+            const pi = active.findIndex((t, i) => i > currentIndex && t.id === item.id);
             if (pi >= 0) {
                 if (shuffleOn) shuffledTracks.splice(pi, 1);
                 else           playlistTracks.splice(pi, 1);
@@ -230,7 +230,7 @@ const Queue = (() => {
         if (!item) return;
 
         if (item._qtype === "manual") {
-            const mi = manualTracks.findIndex(t => t.spotify_id === item.spotify_id);
+            const mi = manualTracks.findIndex(t => t.id === item.id);
             if (mi >= 0) {
                 currentManualTrack = manualTracks[mi];
                 manualTracks.splice(0, mi + 1); // remove tudo até ela (inclusive)
@@ -238,7 +238,7 @@ const Queue = (() => {
         } else {
             currentManualTrack = null;
             const active = getActive();
-            const pi = active.findIndex((t, i) => i > currentIndex && t.spotify_id === item.spotify_id);
+            const pi = active.findIndex((t, i) => i > currentIndex && t.id === item.id);
             if (pi >= 0) currentIndex = pi;
         }
         _save();

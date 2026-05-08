@@ -1,19 +1,22 @@
 // static/js/app.js
 
 // ========================
+// helpers
+// ========================
+
+function decodeHtml(str) {
+    if (!str) return "";
+    const txt = document.createElement("textarea");
+    txt.innerHTML = str;
+    return txt.value;
+}
+
+// ========================
 // navegação
 // ========================
 
 function showView(name) {
     closeAllPopups();
-
-    const main = document.getElementById("main");
-    if (name === "playlists" || name === "search") {
-        main.classList.add("show-search");
-    } else {
-        main.classList.remove("show-search");
-        document.getElementById("search-input").value = "";
-    }
 
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     const el = document.getElementById(`view-${name}`);
@@ -46,14 +49,14 @@ async function loadSidebar() {
     playlists.forEach(pl => {
         const el = document.createElement("div");
         el.className = "sidebar-playlist";
-        el.dataset.playlistId = pl.spotify_id;
+        el.dataset.playlistId = pl.id;
         el.innerHTML = `
             <img class="sidebar-playlist-cover"
-                 src="/library/playlist/${pl.spotify_id}/cover"
+                 src="/library/playlist/${pl.id}/cover"
                  onerror="this.style.opacity='0'">
             <span class="sidebar-playlist-name">${pl.name}</span>
         `;
-        el.addEventListener("click", () => openPlaylist(pl.spotify_id, pl.name));
+        el.addEventListener("click", () => openPlaylist(pl.id, pl.name));
         list.appendChild(el);
     });
     renderHomepage(playlists);
@@ -69,8 +72,8 @@ function renderHomepage(playlists) {
 
     document.getElementById("home-featured").innerHTML = `
         <div style="display:flex;gap:20px;align-items:flex-end;background:linear-gradient(135deg,#1a1200,#0d0d0d);border-radius:12px;padding:24px;cursor:pointer;border:1px solid var(--border);"
-             onclick="openPlaylist('${featured.spotify_id}', '${featured.name.replace(/'/g, "\\'")}')">
-            <img src="/library/playlist/${featured.spotify_id}/cover"
+             onclick="openPlaylist('${featured.id}', '${featured.name.replace(/'/g, "\\'")}')">
+            <img src="/library/playlist/${featured.id}/cover"
                  onerror="this.style.display='none'"
                  style="width:100px;height:100px;border-radius:8px;object-fit:cover;background:var(--bg-3);flex-shrink:0;">
             <div>
@@ -78,7 +81,7 @@ function renderHomepage(playlists) {
                 <div style="font-size:24px;font-weight:700;color:var(--text);margin-bottom:6px;">${featured.name}</div>
                 <div style="font-size:12px;color:var(--text-3);">Última sync: ${formatDate(featured.last_synced)}</div>
                 <button class="btn btn-accent" style="margin-top:12px;"
-                        onclick="event.stopPropagation();openPlaylist('${featured.spotify_id}','${featured.name.replace(/'/g, "\\'")}')">Abrir</button>
+                        onclick="event.stopPropagation();openPlaylist('${featured.id}','${featured.name.replace(/'/g, "\\'")}')">Abrir</button>
             </div>
         </div>`;
 
@@ -88,7 +91,7 @@ function renderHomepage(playlists) {
         const el = document.createElement("div");
         el.style.cssText = "display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:var(--bg-2);transition:background 0.15s;";
         el.innerHTML = `
-            <img src="/library/playlist/${pl.spotify_id}/cover"
+            <img src="/library/playlist/${pl.id}/cover"
                  onerror="this.style.opacity='0'"
                  style="width:44px;height:44px;border-radius:6px;object-fit:cover;background:var(--bg-3);flex-shrink:0;">
             <div>
@@ -97,7 +100,7 @@ function renderHomepage(playlists) {
             </div>`;
         el.addEventListener("mouseover", () => el.style.background = "var(--bg-hover)");
         el.addEventListener("mouseout",  () => el.style.background = "var(--bg-2)");
-        el.addEventListener("click", () => openPlaylist(pl.spotify_id, pl.name));
+        el.addEventListener("click", () => openPlaylist(pl.id, pl.name));
         homeList.appendChild(el);
     });
 }
@@ -173,9 +176,18 @@ async function openPlaylist(playlistId, name) {
     document.getElementById("pl-cover").onerror  = () => {};
  
     document.getElementById("pl-actions").innerHTML = `
-        <button class="btn btn-danger-solid" id="btn-delete-playlist">
-            <i class="fa-solid fa-trash"></i> Remover playlist
-        </button>`;
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" id="btn-edit-cover">
+                <i class="fa-solid fa-image"></i> Editar capa
+            </button>
+            <button class="btn btn-danger-solid" id="btn-delete-playlist">
+                <i class="fa-solid fa-trash"></i> Remover playlist
+            </button>
+        </div>`;
+
+    document.getElementById("btn-edit-cover").addEventListener("click", () => {
+        openEditCoverModal(playlistId);
+    });
  
     document.getElementById("btn-delete-playlist").addEventListener("click", async () => {
         const ok = await showConfirm({
@@ -237,25 +249,25 @@ function renderTrackList(allTracks, downloadedTracks, playlistId) {
             const el = document.createElement("div");
             el.className         = "track-item" + (track.downloaded ? "" : " track-not-downloaded");
             el.dataset.pos       = i;
-            el.dataset.spotifyId = track.spotify_id;
+            el.dataset.id = track.id;
             el.style.cssText     = `position:absolute;top:${i * getItemHeight()}px;width:100%;`;
 
-            if (current && current.spotify_id === track.spotify_id) {
+            if (current && current.id === track.id) {
                 el.classList.add("playing");
             }
 
             el.innerHTML = `
                 <div class="track-num">${i + 1}</div>
-                <img class="track-cover" src="${coverUrl(track.spotify_id)}" loading="lazy" onerror="this.style.opacity='0.2'">
+                <img class="track-cover" src="${coverUrl(track.id)}" loading="lazy" onerror="this.style.opacity='0.2'">
                 <div>
-                    <div class="track-title">${track.title}</div>
-                    <div class="track-artist">${track.artist}</div>
+                    <div class="track-title">${decodeHtml(track.title)}</div>
+                    <div class="track-artist">${decodeHtml(track.artist)}</div>
                 </div>
-                <div class="track-album">${track.album}</div>
+                <div class="track-album">${decodeHtml(track.album)}</div>
                 <div class="track-plays" style="font-size:12px;color:var(--text-3);">${track.play_count || 0}</div>
                 <div class="track-duration">${formatDuration(track.duration_ms)}</div>
                 <div class="track-actions">
-                    <button class="track-dots" data-spotify-id="${track.spotify_id}" data-yt-url="${track.youtube_url || ''}">···</button>
+                    <button class="track-dots" data-id="${track.id}" data-yt-url="${track.youtube_url || ''}">···</button>
                 </div>`;
 
             if (track.downloaded) {
@@ -263,7 +275,7 @@ function renderTrackList(allTracks, downloadedTracks, playlistId) {
                     if (Queue.currentPlaylistId !== thisPlaylistId) {
                         Queue.loadPlaylist(downloadedTracks, thisPlaylistId);
                     }
-                    const qi = downloadedTracks.findIndex(t => t.spotify_id === track.spotify_id);
+                    const qi = downloadedTracks.findIndex(t => t.id === track.id);
                     Queue.playAt(qi, true);
                     Player.play(Queue.getCurrent());
                     highlightCurrentTrack();
@@ -283,7 +295,7 @@ function renderTrackList(allTracks, downloadedTracks, playlistId) {
         const cur = Queue.getCurrent();
         if (cur) {
             container.querySelectorAll(".track-item").forEach(el => {
-                el.classList.toggle("playing", el.dataset.spotifyId === cur.spotify_id);
+                el.classList.toggle("playing", el.dataset.id === cur.id);
             });
         }
     }
@@ -298,15 +310,87 @@ function renderTrackList(allTracks, downloadedTracks, playlistId) {
     });
 }
 
-function highlightTrack(spotifyId) {
+function openEditCoverModal(playlistId) {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+        <div class="modal">
+            <div class="modal-title">Editar capa</div>
+            <div class="modal-body">
+                <div style="margin-bottom:16px;">
+                    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">URL de imagem</div>
+                    <input id="cover-url-input" class="url-input" style="width:100%;" placeholder="https://..." autocomplete="off">
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="flex:1;height:1px;background:var(--border);"></div>
+                    <span style="font-size:12px;color:var(--text-3);">ou</span>
+                    <div style="flex:1;height:1px;background:var(--border);"></div>
+                </div>
+                <div style="margin-top:16px;">
+                    <button class="btn" id="btn-upload-cover">
+                        <i class="fa-solid fa-upload"></i> Enviar arquivo
+                    </button>
+                    <input type="file" id="cover-file-input" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                    <span id="cover-file-name" style="font-size:13px;color:var(--text-3);margin-left:12px;"></span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" id="modal-cancel">Cancelar</button>
+                <button class="btn btn-accent" id="modal-confirm">Salvar</button>
+            </div>
+        </div>`;
+
+    document.body.appendChild(overlay);
+
+    let selectedFile = null;
+
+    overlay.querySelector("#btn-upload-cover").addEventListener("click", () => {
+        overlay.querySelector("#cover-file-input").click();
+    });
+
+    overlay.querySelector("#cover-file-input").addEventListener("change", (e) => {
+        selectedFile = e.target.files[0];
+        overlay.querySelector("#cover-file-name").textContent = selectedFile?.name || "";
+    });
+
+    overlay.querySelector("#modal-cancel").addEventListener("click", () => overlay.remove());
+
+    overlay.querySelector("#modal-confirm").addEventListener("click", async () => {
+        const url = overlay.querySelector("#cover-url-input").value.trim();
+        overlay.remove();
+
+        let result;
+        if (selectedFile) {
+            result = await uploadPlaylistCover(playlistId, selectedFile);
+        } else if (url) {
+            result = await setPlaylistCoverUrl(playlistId, url);
+        } else {
+            return;
+        }
+
+        if (result.status === "ok") {
+            // força reload da capa adicionando timestamp
+            const cover = document.getElementById("pl-cover");
+            cover.src = `/library/playlist/${playlistId}/cover?t=${Date.now()}`;
+        } else {
+            alert("Erro: " + result.error);
+        }
+    });
+
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+}
+
+function highlightTrack(id) {
     document.querySelectorAll(".track-item").forEach(el => {
-        el.classList.toggle("playing", el.dataset.spotifyId === spotifyId);
+        el.classList.toggle("playing", el.dataset.id === id);
     });
 }
 
 function highlightCurrentTrack() {
     const current = Queue.getCurrent();
-    if (current) highlightTrack(current.spotify_id);
+    if (current) highlightTrack(current.id);
 }
 
 function formatDuration(ms) {
@@ -325,76 +409,213 @@ function openTrackPopup(btn, track) {
 
     const popup = document.createElement("div");
     popup.className = "track-popup";
-    popup.innerHTML = `
-        <div style="font-size:13px;font-weight:500;color:var(--text);margin-bottom:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${track.title}</div>
-        <button class="btn" style="width:100%;margin-bottom:6px;text-align:left;" id="popup-add-queue">+ Adicionar à fila</button>
-        <div style="border-top:1px solid var(--border);margin:8px 0;"></div>
-        <div class="track-popup-label" style="margin-bottom:6px;">Link do YouTube</div>
-        <input id="popup-yt-input" autocomplete="off" placeholder="youtube.com/watch?v=..." value="${track.youtube_url || ''}">
-        <div class="track-popup-actions">
-            <button class="btn btn-accent" id="popup-save">Salvar</button>
-            <button class="btn" id="popup-close">✕</button>
-        </div>`;
+    popup.style.cssText = `
+        position: fixed;
+        background: #1e1e1e;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 4px 0;
+        z-index: 1000;
+        min-width: 220px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    `;
 
     const rect = btn.getBoundingClientRect();
     popup.style.top   = `${rect.bottom + 4}px`;
     popup.style.right = `${window.innerWidth - rect.right}px`;
-    document.body.appendChild(popup);
 
-    popup.querySelector("#popup-add-queue").addEventListener("click", () => {
+    popup.innerHTML = `
+        <div class="ctx-item" id="ctx-queue">
+            <i class="fa-solid fa-list" style="width:16px;"></i> Adicionar à fila
+        </div>
+        <div class="ctx-item ctx-has-sub" id="ctx-playlist">
+            <i class="fa-solid fa-music" style="width:16px;"></i> Adicionar à playlist
+            <i class="fa-solid fa-chevron-right" style="margin-left:auto;font-size:10px;"></i>
+        </div>
+        <div class="ctx-item ctx-has-sub" id="ctx-edit">
+            <i class="fa-solid fa-pen" style="width:16px;"></i> Editar informações
+            <i class="fa-solid fa-chevron-right" style="margin-left:auto;font-size:10px;"></i>
+        </div>
+        <div class="ctx-item ctx-has-sub" id="ctx-source">
+            <i class="fa-solid fa-file-audio" style="width:16px;"></i> Mudar arquivo da faixa
+            <i class="fa-solid fa-chevron-right" style="margin-left:auto;font-size:10px;"></i>
+        </div>
+    `;
+
+    document.body.appendChild(popup);
+    window.requestAnimationFrame(() => {
+        const popupRect = popup.getBoundingClientRect();
+        let top = rect.bottom + 4;
+        if (top + popupRect.height > window.innerHeight - 4) {
+            top = Math.max(4, rect.top - popupRect.height - 4);
+        }
+        popup.style.top = `${top}px`;
+    });
+
+    // ========================
+    // adicionar à fila
+    // ========================
+    popup.querySelector("#ctx-queue").addEventListener("click", () => {
         Queue.addToManual(track);
         closeAllPopups();
         QueuePanel.render();
     });
 
-    popup.querySelector("#popup-close").addEventListener("click", closeAllPopups);
+    // ========================
+    // submenu: adicionar à playlist
+    // ========================
+    popup.querySelector("#ctx-playlist").addEventListener("mouseenter", async () => {
+        closeSubmenus();
+        const playlists = await fetchPlaylists();
 
-    popup.querySelector("#popup-save").addEventListener("click", async () => {
-        const url     = popup.querySelector("#popup-yt-input").value.trim();
-        const saveBtn = popup.querySelector("#popup-save");
-        if (!url) return;
-        saveBtn.textContent = "Salvando...";
-        saveBtn.disabled    = true;
-        const result = await setTrackUrl(track.spotify_id, url);
-        if (result.status === "ok") {
-            saveBtn.textContent       = "✓ Salvo — baixando...";
-            saveBtn.style.borderColor = "var(--success)";
-            saveBtn.style.color       = "var(--success)";
-            btn.dataset.ytUrl = url;
+        // quais playlists já têm essa track
+        const currentPlaylists = await fetch(`${API}/library/track/${track.id}/playlists`)
+            .then(r => r.json()).catch(() => []);
 
-            const pollInterval = setInterval(async () => {
-                const status = await fetchTrackStatus(track.spotify_id);
-                if (status.downloaded) {
-                    clearInterval(pollInterval);
-                    const trackItem = btn.closest(".track-item");
-                    if (trackItem) {
-                        const title = trackItem.querySelector(".track-title");
-                        if (title) {
-                            title.style.color      = "var(--success)";
-                            title.style.transition = "color 0.5s";
-                            setTimeout(() => { title.style.color = ""; }, 3000);
-                        }
-                    }
-                    setTimeout(closeAllPopups, 500);
-                } else if (status.failed) {
-                    clearInterval(pollInterval);
-                    saveBtn.textContent       = "Download falhou";
-                    saveBtn.style.borderColor = "var(--danger)";
-                    saveBtn.style.color       = "var(--danger)";
-                    saveBtn.disabled          = false;
-                }
-            }, 2000);
-        } else {
-            saveBtn.textContent       = "Erro";
-            saveBtn.style.borderColor = "var(--danger)";
-            saveBtn.style.color       = "var(--danger)";
-            saveBtn.disabled          = false;
-        }
+        const sub = createSubmenu(popup.querySelector("#ctx-playlist"));
+        sub.innerHTML = playlists.map(p => `
+            <label class="ctx-item" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="checkbox" value="${p.id}" 
+                    ${currentPlaylists.includes(p.id) ? "checked" : ""}
+                    style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;">
+                <span>${escapeHtml(p.name)}</span>
+            </label>
+        `).join("") + `
+            <div style="border-top:1px solid var(--border);margin:4px 0;"></div>
+            <div class="ctx-item" id="sub-playlist-save">
+                <i class="fa-solid fa-check" style="width:16px;"></i> Confirmar
+            </div>
+        `;
+
+        sub.querySelector("#sub-playlist-save").addEventListener("click", async () => {
+            const checked = [...sub.querySelectorAll("input:checked")].map(el => el.value);
+            await updateTrackPlaylists(track.id, checked);
+            closeAllPopups();
+            await loadSidebar();
+        });
     });
 
+    // ========================
+    // submenu: editar informações
+    // ========================
+    popup.querySelector("#ctx-edit").addEventListener("mouseenter", () => {
+        closeSubmenus();
+        const sub = createSubmenu(popup.querySelector("#ctx-edit"));
+        sub.innerHTML = `
+            <div style="padding:8px 12px;display:flex;flex-direction:column;gap:6px;min-width:240px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <img id="sub-cover-preview" src="${coverUrl(track.id)}?t=${Date.now()}"
+                         style="width:40px;height:40px;border-radius:4px;object-fit:cover;background:var(--bg-3);"
+                         onerror="this.style.opacity='0.2'">
+                    <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
+                        <button class="btn" id="sub-cover-upload" style="font-size:11px;padding:3px 8px;">
+                            <i class="fa-solid fa-upload"></i> Capa
+                        </button>
+                        <input id="sub-cover-url" class="track-popup-input" placeholder="URL da capa..." style="margin:0;font-size:11px;">
+                    </div>
+                    <input type="file" id="sub-cover-file" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
+                </div>
+                <input id="sub-title"  class="track-popup-input" placeholder="Título"  value="${escapeHtml(track.title  || '')}">
+                <input id="sub-artist" class="track-popup-input" placeholder="Artista" value="${escapeHtml(track.artist || '')}">
+                <input id="sub-album"  class="track-popup-input" placeholder="Álbum"   value="${escapeHtml(track.album  || '')}">
+                <button class="btn btn-accent" id="sub-edit-save" style="margin-top:4px;">Salvar</button>
+            </div>
+        `;
+
+        initAutocomplete(sub.querySelector("#sub-artist"), fetchArtists);
+        initAutocomplete(sub.querySelector("#sub-album"),  fetchAlbums);
+
+        sub.querySelector("#sub-cover-upload").addEventListener("click", () => {
+            sub.querySelector("#sub-cover-file").click();
+        });
+
+        sub.querySelector("#sub-cover-file").addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    sub.querySelector("#sub-cover-preview").src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        sub.querySelector("#sub-edit-save").addEventListener("click", async () => {
+            const title   = sub.querySelector("#sub-title").value.trim();
+            const artist  = sub.querySelector("#sub-artist").value.trim();
+            const album   = sub.querySelector("#sub-album").value.trim();
+            const coverFile = sub.querySelector("#sub-cover-file").files[0];
+            const coverUrl_ = sub.querySelector("#sub-cover-url").value.trim();
+
+            await updateTrack(track.id, { title, artist, album });
+
+            if (coverFile) await uploadTrackCover(track.id, coverFile);
+            else if (coverUrl_) await setTrackCoverUrl(track.id, coverUrl_);
+
+            // atualiza na lista
+            const trackEl = document.querySelector(`[data-id="${track.id}"]`);
+            if (trackEl) {
+                trackEl.querySelector(".track-title")?.textContent  != null && (trackEl.querySelector(".track-title").textContent  = title  || track.title);
+                trackEl.querySelector(".track-artist")?.textContent != null && (trackEl.querySelector(".track-artist").textContent = artist || track.artist);
+                trackEl.querySelector(".track-album")?.textContent  != null && (trackEl.querySelector(".track-album").textContent  = album  || track.album);
+                const coverImg = trackEl.querySelector(".track-cover");
+                if (coverImg) coverImg.src = `${coverUrl(track.id)}?t=${Date.now()}`;
+            }
+
+            closeAllPopups();
+        });
+    });
+
+    // ========================
+    // submenu: mudar arquivo da faixa
+    // ========================
+    popup.querySelector("#ctx-source").addEventListener("mouseenter", () => {
+        closeSubmenus();
+        const sub = createSubmenu(popup.querySelector("#ctx-source"));
+        sub.innerHTML = `
+            <div style="padding:8px 12px;display:flex;flex-direction:column;gap:6px;min-width:260px;">
+                <div class="track-popup-label">Link do YouTube</div>
+                <div style="display:flex;gap:6px;">
+                    <input id="sub-yt-input" class="track-popup-input" style="flex:1;margin:0;"
+                           placeholder="youtube.com/watch?v=..." value="${track.youtube_url || ''}">
+                    <button class="btn btn-accent" id="sub-yt-save" style="flex-shrink:0;">OK</button>
+                </div>
+                <div style="border-top:1px solid var(--border);margin:4px 0;"></div>
+                <div class="track-popup-label">Arquivo local</div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <button class="btn" id="sub-file-btn" style="font-size:11px;">
+                        <i class="fa-solid fa-file-audio"></i> Selecionar
+                    </button>
+                    <span id="sub-file-name" style="font-size:11px;color:var(--text-3);">Nenhum arquivo</span>
+                </div>
+                <input type="file" id="sub-file-input" accept=".mp3,.flac,.ogg,.m4a" style="display:none;">
+            </div>
+        `;
+
+        sub.querySelector("#sub-yt-save").addEventListener("click", async () => {
+            const url = sub.querySelector("#sub-yt-input").value.trim();
+            if (!url) return;
+            await setTrackUrl(track.id, url);
+            closeAllPopups();
+        });
+
+        sub.querySelector("#sub-file-btn").addEventListener("click", () => {
+            sub.querySelector("#sub-file-input").click();
+        });
+
+        sub.querySelector("#sub-file-input").addEventListener("change", async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            sub.querySelector("#sub-file-name").textContent = file.name;
+            await replaceTrackFile(track.id, file);
+            closeAllPopups();
+        });
+    });
+
+    // fecha ao clicar fora
     setTimeout(() => {
         function outsideClick(e) {
-            if (!popup.contains(e.target) && e.target !== btn) {
+            if (!popup.contains(e.target) && !document.querySelector(".ctx-submenu")?.contains(e.target) && e.target !== btn) {
                 closeAllPopups();
                 document.removeEventListener("click", outsideClick);
             }
@@ -405,11 +626,129 @@ function openTrackPopup(btn, track) {
     document.getElementById("main").addEventListener("scroll", closeAllPopups, { once: true });
 }
 
+function createSubmenu(parentItem) {
+    closeSubmenus();
+    const sub = document.createElement("div");
+    sub.className  = "ctx-submenu track-popup";
+    sub.style.cssText = `
+        position: fixed;
+        background: #1e1e1e;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 4px 0;
+        z-index: 1001;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        transform-origin: right top;
+    `;
+
+    const rect = parentItem.getBoundingClientRect();
+    sub.style.top  = `${rect.top}px`;
+    sub.style.left = `${rect.left}px`;
+    sub.style.transform = "translateX(-100%)";
+
+    document.body.appendChild(sub);
+    window.requestAnimationFrame(() => {
+        const subRect = sub.getBoundingClientRect();
+        const offset = 4;
+        let top = rect.top;
+        let left = rect.left;
+
+        if (left - subRect.width - offset >= 0) {
+            left = rect.left;
+            sub.style.transform = "translateX(-100%)";
+        } else {
+            left = rect.right + offset;
+            sub.style.transform = "none";
+        }
+
+        if (top + subRect.height > window.innerHeight - offset) {
+            top = Math.max(offset, window.innerHeight - subRect.height - offset);
+        }
+        if (top < offset) top = offset;
+
+        sub.style.top = `${top}px`;
+        sub.style.left = `${left}px`;
+    });
+
+    return sub;
+}
+
+function closeSubmenus() {
+    document.querySelectorAll(".ctx-submenu").forEach(s => s.remove());
+}
+
 function closeAllPopups() {
     document.querySelectorAll(".track-popup").forEach(p => {
         const input = p.querySelector("input");
         if (input) { input.value = ""; input.blur(); }
         p.remove();
+    });
+}
+
+function initAutocomplete(input, fetchFn) {
+    let dropdown = null;
+    let debounce = null;
+
+    function closeDropdown() {
+        if (dropdown) { dropdown.remove(); dropdown = null; }
+    }
+
+    function openDropdown(items) {
+        closeDropdown();
+        if (!items.length) return;
+
+        dropdown = document.createElement("div");
+        dropdown.style.cssText = `
+            position: fixed;
+            background: #1e1e1e;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            z-index: 2000;
+            min-width: ${input.offsetWidth}px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            overflow: hidden;
+        `;
+
+        const rect = input.getBoundingClientRect();
+        dropdown.style.top  = `${rect.bottom + 2}px`;
+        dropdown.style.left = `${rect.left}px`;
+
+        items.forEach(item => {
+            const el = document.createElement("div");
+            el.textContent = item;
+            el.style.cssText = `
+                padding: 8px 12px;
+                font-size: 13px;
+                color: var(--text-2);
+                cursor: pointer;
+                transition: background 0.1s;
+            `;
+            el.addEventListener("mouseenter", () => el.style.background = "var(--bg-hover)");
+            el.addEventListener("mouseleave", () => el.style.background = "");
+            el.addEventListener("mousedown", (e) => {
+                e.preventDefault(); // impede blur antes do click
+                input.value = item;
+                closeDropdown();
+            });
+            dropdown.appendChild(el);
+        });
+
+        document.body.appendChild(dropdown);
+    }
+
+    input.addEventListener("input", () => {
+        clearTimeout(debounce);
+        debounce = setTimeout(async () => {
+            const q = input.value.trim();
+            if (!q) { closeDropdown(); return; }
+            const items = await fetchFn(q);
+            openDropdown(items);
+        }, 200);
+    });
+
+    input.addEventListener("blur", () => setTimeout(closeDropdown, 150));
+    input.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeDropdown();
     });
 }
 
@@ -539,12 +878,12 @@ const QueuePanel = (() => {
 
     function _unifiedRow(track, i) {
         return `
-            <div class="queue-track-row" data-unified-idx="${i}" data-qtype="${track._qtype}" data-spotify-id="${track.spotify_id}" draggable="true" style="cursor:pointer;">
+            <div class="queue-track-row" data-unified-idx="${i}" data-qtype="${track._qtype}" data-id="${track.id}" draggable="true" style="cursor:pointer;">
                 <span class="queue-drag-handle" title="Arrastar">⠿</span>
-                <img src="${coverUrl(track.spotify_id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
+                <img src="${coverUrl(track.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${track.title}</div>
-                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${track.artist}</div>
+                    <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.title)}</div>
+                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.artist)}</div>
                 </div>
                 <button class="ctrl-btn" style="font-size:12px;flex-shrink:0;" data-remove-idx="${i}">✕</button>
             </div>`;
@@ -553,10 +892,10 @@ const QueuePanel = (() => {
     function _currentRow(track) {
         return `
             <div class="queue-track-row" style="background:#1a1200;cursor:default;">
-                <img src="${coverUrl(track.spotify_id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
+                <img src="${coverUrl(track.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--accent);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${track.title}</div>
-                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${track.artist}</div>
+                    <div style="font-size:13px;color:var(--accent);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.title)}</div>
+                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.artist)}</div>
                 </div>
             </div>`;
     }
@@ -565,10 +904,10 @@ const QueuePanel = (() => {
         return `
             <div class="queue-track-row" data-manual-idx="${i}" draggable="true">
                 <span class="queue-drag-handle" title="Arrastar">⠿</span>
-                <img src="${coverUrl(track.spotify_id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
+                <img src="${coverUrl(track.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${track.title}</div>
-                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${track.artist}</div>
+                    <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.title)}</div>
+                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.artist)}</div>
                 </div>
                 <button class="ctrl-btn" style="font-size:12px;flex-shrink:0;" data-remove="${i}">✕</button>
             </div>`;
@@ -576,11 +915,11 @@ const QueuePanel = (() => {
 
     function _playlistRow(track) {
         return `
-            <div class="queue-track-row" data-pl-id="${track.spotify_id}" style="cursor:pointer;">
-                <img src="${coverUrl(track.spotify_id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
+            <div class="queue-track-row" data-pl-id="${track.id}" style="cursor:pointer;">
+                <img src="${coverUrl(track.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${track.title}</div>
-                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${track.artist}</div>
+                    <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.title)}</div>
+                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.artist)}</div>
                 </div>
             </div>`;
     }
@@ -644,13 +983,13 @@ const QueuePanel = (() => {
         });
     }
 
-    function playFromQueue(spotifyId, manualIndex) {
+    function playFromQueue(id, manualIndex) {
         if (manualIndex !== null && manualIndex !== undefined) {
             const track = Queue.getUpcoming().manual[manualIndex];
             Queue.removeFromManual(manualIndex);
             Player.play(track);
         } else {
-            const idx = Queue.playlistTracks.findIndex(t => t.spotify_id === spotifyId);
+            const idx = Queue.playlistTracks.findIndex(t => t.id === id);
             if (idx >= 0) {
                 Queue.playAt(idx, true);
                 Player.play(Queue.getCurrent());
@@ -751,9 +1090,6 @@ async function initManage() {
     const cfg = await fetchConfig();
     document.getElementById("cfg-host").value          = cfg.host;
     document.getElementById("cfg-port").value          = cfg.port;
-    document.getElementById("cfg-browser").value       = cfg.yt_dlp_browser;
-    document.getElementById("cfg-client-id").value     = cfg.client_id;
-    document.getElementById("cfg-client-secret").value = cfg.client_secret;
     const failed   = await fetchFailed();
     const failedEl = document.getElementById("failed-list");
     failedEl.innerHTML = !failed.length
@@ -762,12 +1098,12 @@ async function initManage() {
             <thead><tr><th>Título</th><th>Artista</th><th>Erro</th><th>URL Manual</th></tr></thead>
             <tbody>${failed.map(f => `
                 <tr>
-                    <td>${f.title}</td>
-                    <td>${f.artist}</td>
+                    <td>${decodeHtml(f.title)}</td>
+                    <td>${decodeHtml(f.artist)}</td>
                     <td style="color:var(--danger);max-width:200px;overflow:hidden;text-overflow:ellipsis;">${f.error_msg || "—"}</td>
                     <td style="display:flex;gap:6px;">
-                        <input class="url-input" placeholder="youtube.com/watch?v=..." id="url-${f.spotify_id}" style="width:200px;" autocomplete="off">
-                        <button class="btn btn-accent" onclick="submitUrl('${f.spotify_id}')">Baixar</button>
+                        <input class="url-input" placeholder="youtube.com/watch?v=..." id="url-${f.id}" style="width:200px;" autocomplete="off">
+                        <button class="btn btn-accent" onclick="submitUrl('${f.id}')">Baixar</button>
                     </td>
                 </tr>`).join("")}
             </tbody>
@@ -789,21 +1125,21 @@ async function initManage() {
             </thead>
             <tbody>
                 ${orphans.map(t => `
-                    <tr id="orphan-row-${t.spotify_id}">
-                        <td><img src="${coverUrl(t.spotify_id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);" onerror="this.style.opacity='0.2'"></td>
-                        <td style="color:var(--text);">${t.title}</td>
-                        <td>${t.artist}</td>
+                    <tr id="orphan-row-${t.id}">
+                        <td><img src="${coverUrl(t.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);" onerror="this.style.opacity='0.2'"></td>
+                        <td style="color:var(--text);">${decodeHtml(t.title)}</td>
+                        <td>${decodeHtml(t.artist)}</td>
                         <td>
                             ${t.downloaded
                                 ? `<span style="color:var(--success);font-size:12px;"><i class="fa-solid fa-check"></i> baixada</span>`
                                 : `<span style="color:var(--text-3);font-size:12px;">não baixada</span>`}
                         </td>
                         <td style="display:flex;gap:6px;">
-                            <button class="btn btn-danger-solid" onclick="deleteOrphan('${t.spotify_id}', false)">
+                            <button class="btn btn-danger-solid" onclick="deleteOrphan('${t.id}', false)">
                                 <i class="fa-solid fa-trash"></i>
                             </button>
                             ${t.downloaded ? `
-                            <button class="btn btn-danger-solid" onclick="deleteOrphan('${t.spotify_id}', true)" title="Remover + arquivo">
+                            <button class="btn btn-danger-solid" onclick="deleteOrphan('${t.id}', true)" title="Remover + arquivo">
                                 <i class="fa-solid fa-hard-drive"></i>
                             </button>` : ""}
                         </td>
@@ -813,7 +1149,7 @@ async function initManage() {
         <p style="font-size:12px;color:var(--text-3);margin-top:8px;">${orphans.length} track${orphans.length !== 1 ? "s" : ""} órfã${orphans.length !== 1 ? "s" : ""}</p>`;
 }
 
-async function deleteOrphan(spotifyId, withFiles) {
+async function deleteOrphan(id, withFiles) {
     const ok = await showConfirm({
         title: withFiles ? "Remover track e arquivo" : "Remover track",
         body:  withFiles
@@ -824,20 +1160,20 @@ async function deleteOrphan(spotifyId, withFiles) {
     });
     if (!ok) return;
 
-    const result = await deleteOrphanTrack(spotifyId, withFiles);
+    const result = await deleteOrphanTrack(id, withFiles);
     if (result.status === "ok") {
-        document.getElementById(`orphan-row-${spotifyId}`)?.remove();
+        document.getElementById(`orphan-row-${id}`)?.remove();
     } else {
         alert("Erro: " + result.error);
     }
 }
 
-async function submitUrl(spotifyId) {
-    const input = document.getElementById(`url-${spotifyId}`);
+async function submitUrl(id) {
+    const input = document.getElementById(`url-${id}`);
     const url   = input.value.trim();
     if (!url) return;
     input.disabled = true;
-    const result = await setTrackUrl(spotifyId, url);
+    const result = await setTrackUrl(id, url);
     if (result.status === "ok") {
         input.closest("tr").style.opacity = "0.4";
     } else {
@@ -877,59 +1213,6 @@ function extractPlaylistId(input) {
     return null;
 }
 
-document.getElementById("btn-preview-playlist").addEventListener("click", async () => {
-    const input  = document.getElementById("add-playlist-input").value;
-    const id     = extractPlaylistId(input);
-    const status = document.getElementById("add-playlist-status");
-    if (!id) {
-        status.style.color = "var(--danger)";
-        status.textContent = "URL ou ID inválido.";
-        return;
-    }
-    status.style.color = "var(--text-3)";
-    status.textContent = "Buscando...";
-    try {
-        const data = await fetchPlaylistPreview(id);
-        if (data.error) throw new Error(data.error);
-        document.getElementById("preview-name").textContent  = data.name;
-        document.getElementById("preview-meta").textContent  = `${data.total_tracks} músicas · ${data.owner}`;
-        document.getElementById("preview-cover").src         = data.cover_url || "";
-        document.getElementById("add-playlist-preview").style.display = "flex";
-        document.getElementById("btn-confirm-add").style.display      = "inline-block";
-        document.getElementById("btn-confirm-add").dataset.id         = id;
-        status.textContent = "";
-    } catch (e) {
-        status.style.color = "var(--danger)";
-        status.textContent = `Erro: ${e.message}`;
-    }
-});
-
-document.getElementById("btn-confirm-add").addEventListener("click", async () => {
-    const id     = document.getElementById("btn-confirm-add").dataset.id;
-    const status = document.getElementById("add-playlist-status");
-    status.style.color = "var(--text-3)";
-    status.textContent = "Sincronizando...";
-    document.getElementById("btn-confirm-add").disabled = true;
-    try {
-        const result = await addPlaylist(id);
-        status.style.color = "var(--success)";
-        status.textContent = `✓ ${result.playlist} adicionada — ${result.added} músicas novas.`;
-        await loadSidebar();
-        setTimeout(() => {
-            document.getElementById("add-playlist-input").value            = "";
-            document.getElementById("add-playlist-preview").style.display = "none";
-            document.getElementById("btn-confirm-add").style.display      = "none";
-            document.getElementById("btn-confirm-add").disabled           = false;
-            status.textContent = "";
-            openPlaylist(id, result.playlist);
-        }, 2000);
-    } catch (e) {
-        status.style.color = "var(--danger)";
-        status.textContent = `Erro: ${e.message}`;
-        document.getElementById("btn-confirm-add").disabled = false;
-    }
-});
-
 async function openAllTracks() {
     document.getElementById("main").classList.remove("show-search");
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
@@ -952,26 +1235,26 @@ async function openAllTracks() {
     tracks.forEach((track, i) => {
         const el = document.createElement("div");
         el.className         = "track-item" + (track.downloaded ? "" : " track-not-downloaded");
-        el.dataset.spotifyId = track.spotify_id;
+        el.dataset.id = track.id;
         el.style.cssText     = `position:absolute;top:${i * getItemHeight()}px;width:100%;`;
         el.innerHTML = `
             <div class="track-num">${i + 1}</div>
-            <img class="track-cover" src="${coverUrl(track.spotify_id)}" loading="lazy" onerror="this.style.opacity='0.2'">
+            <img class="track-cover" src="${coverUrl(track.id)}" loading="lazy" onerror="this.style.opacity='0.2'">
             <div>
-                <div class="track-title">${track.title}</div>
-                <div class="track-artist">${track.artist}</div>
+                <div class="track-title">${decodeHtml(track.title)}</div>
+                <div class="track-artist">${decodeHtml(track.artist)}</div>
             </div>
-            <div class="track-album">${track.album}</div>
+            <div class="track-album">${decodeHtml(track.album)}</div>
             <div class="track-plays" style="font-size:12px;color:var(--text-3);">${track.play_count || 0}</div>
             <div class="track-duration">${formatDuration(track.duration_ms)}</div>
             <div class="track-actions">
-                <button class="track-dots" data-spotify-id="${track.spotify_id}" data-yt-url="${track.youtube_url || ''}">···</button>
+                <button class="track-dots" data-id="${track.id}" data-yt-url="${track.youtube_url || ''}">···</button>
             </div>`;
 
         if (track.downloaded) {
             el.addEventListener("click", () => {
                 Queue.loadPlaylist(downloadedTracks, "all");
-                const qi = downloadedTracks.findIndex(t => t.spotify_id === track.spotify_id);
+                const qi = downloadedTracks.findIndex(t => t.id === track.id);
                 Queue.playAt(qi, true);
                 Player.play(Queue.getCurrent());
                 highlightCurrentTrack();
@@ -1029,7 +1312,7 @@ async function restoreState() {
     if (!track) return;
 
     const audio = document.getElementById("audio");
-    audio.src   = `${API}/media/track/${track.spotify_id}/audio`;
+    audio.src   = `${API}/media/track/${track.id}/audio`;
     audio.addEventListener("loadedmetadata", () => {
         audio.currentTime = savedTime;
         document.getElementById("time-total").textContent   = formatDuration(track.duration_ms);
@@ -1038,7 +1321,7 @@ async function restoreState() {
 
     document.getElementById("player-title").textContent  = track.title;
     document.getElementById("player-artist").textContent = track.artist;
-    document.getElementById("player-cover").src          = coverUrl(track.spotify_id);
+    document.getElementById("player-cover").src          = coverUrl(track.id);
 
     const miniCover  = document.getElementById("player-cover-mini");
     const fullCover  = document.getElementById("player-cover-full");
@@ -1047,24 +1330,31 @@ async function restoreState() {
     const miniArtist = document.getElementById("player-artist-mini");
     const fullArtist = document.getElementById("player-artist-full");
 
-    if (miniCover)  miniCover.src  = fullCover.src  = coverUrl(track.spotify_id);
+    if (miniCover)  miniCover.src  = fullCover.src  = coverUrl(track.id);
     if (miniTitle)  miniTitle.textContent  = fullTitle.textContent  = track.title;
     if (miniArtist) miniArtist.textContent = fullArtist.textContent = track.artist;
 
     setTimeout(highlightCurrentTrack, 300);
 }
 
-function showConfirm({ title, body, confirmLabel = "Confirmar", danger = false }) {
+function showPrompt({ title, fields, confirmLabel = "Confirmar" }) {
     return new Promise((resolve) => {
         const overlay = document.createElement("div");
         overlay.className = "modal-overlay";
         overlay.innerHTML = `
             <div class="modal">
                 <div class="modal-title">${title}</div>
-                <div class="modal-body">${body}</div>
+                <div class="modal-body" style="margin-bottom:16px;">
+                    ${fields.map(f => `
+                        <div style="margin-bottom:12px;">
+                            <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">${f.label}</div>
+                            <input id="${f.id}" class="url-input" style="width:100%;" placeholder="${f.placeholder}" autocomplete="off">
+                        </div>
+                    `).join("")}
+                </div>
                 <div class="modal-actions">
                     <button class="btn" id="modal-cancel">Cancelar</button>
-                    <button class="btn ${danger ? 'btn-danger-solid' : 'btn-accent'}" id="modal-confirm">${confirmLabel}</button>
+                    <button class="btn btn-accent" id="modal-confirm">${confirmLabel}</button>
                 </div>
             </div>`;
 
@@ -1076,16 +1366,21 @@ function showConfirm({ title, body, confirmLabel = "Confirmar", danger = false }
         });
 
         overlay.querySelector("#modal-confirm").addEventListener("click", () => {
+            // lê os valores ANTES de remover
+            fields.forEach(f => {
+                const el = overlay.querySelector(`#${f.id}`);
+                if (el) f.value = el.value;
+            });
             overlay.remove();
             resolve(true);
         });
 
         overlay.addEventListener("click", (e) => {
-            if (e.target === overlay) {
-                overlay.remove();
-                resolve(false);
-            }
+            if (e.target === overlay) { overlay.remove(); resolve(false); }
         });
+
+        // foca no primeiro campo
+        setTimeout(() => overlay.querySelector("input")?.focus(), 50);
     });
 }
 
@@ -1094,7 +1389,25 @@ function showConfirm({ title, body, confirmLabel = "Confirmar", danger = false }
 // ========================
 
 function initSearch() {
-    let searchDebounce = null;
+    let searchDebounce  = null;
+    let searchRequestId = 0;
+    let currentSearchMode = "local";
+ 
+    function switchSearchMode(mode) {
+        currentSearchMode = mode;
+        const input = document.getElementById("search-input");
+        if (mode === "web") {
+            input.placeholder = "Buscar músicas ou colar URL...";
+        } else {
+            input.placeholder = "Buscar músicas na biblioteca...";
+        }
+        input.value = "";
+        showView("playlists");
+    }
+ 
+    document.getElementById("search-mode-select").addEventListener("change", (e) => {
+        switchSearchMode(e.target.value);
+    });
  
     document.getElementById("search-input").addEventListener("input", (e) => {
         const query = e.target.value.trim();
@@ -1105,65 +1418,116 @@ function initSearch() {
         }
  
         clearTimeout(searchDebounce);
+        const debounceTime = currentSearchMode === "web" ? 600 : 300;
+ 
         searchDebounce = setTimeout(async () => {
+            const thisRequestId = ++searchRequestId;
+ 
             document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
             document.getElementById("view-search").classList.add("active");
  
             const titleEl = document.getElementById("search-results-title");
             const list    = document.getElementById("search-results-list");
  
-            titleEl.textContent = `Buscando "${query}"...`;
-            list.innerHTML      = "";
-            list.style.position = "relative";
-            list.style.height   = "0px";
+            if (currentSearchMode === "web") {
+                titleEl.textContent  = `Buscando "${query}"...`;
+                list.innerHTML       = "";
+                list.style.height    = "auto";
+                list.style.position  = "static";
  
-            const tracks = await fetchTrackSearch(query);
+                const results = await fetchYoutubeSearch(query);
  
-            titleEl.textContent = tracks.length
-                ? `${tracks.length} resultado${tracks.length !== 1 ? "s" : ""} para "${query}"`
-                : `Nenhum resultado para "${query}"`;
+                if (thisRequestId !== searchRequestId) return;
  
-            list.style.height = `${tracks.length * getItemHeight()}px`;
- 
-            const downloadedTracks = tracks.filter(t => t.downloaded);
- 
-            tracks.forEach((track, i) => {
-                const el = document.createElement("div");
-                el.className         = "track-item" + (track.downloaded ? "" : " track-not-downloaded");
-                el.dataset.spotifyId = track.spotify_id;
-                el.style.cssText     = `position:absolute;top:${i * getItemHeight()}px;width:100%;`;
-                el.innerHTML = `
-                    <div class="track-num">${i + 1}</div>
-                    <img class="track-cover" src="${coverUrl(track.spotify_id)}" loading="lazy" onerror="this.style.opacity='0.2'">
-                    <div>
-                        <div class="track-title">${track.title}</div>
-                        <div class="track-artist">${track.artist}</div>
-                    </div>
-                    <div class="track-album">${track.album}</div>
-                    <div class="track-plays" style="font-size:12px;color:var(--text-3);">${track.play_count || 0}</div>
-                    <div class="track-duration">${formatDuration(track.duration_ms)}</div>
-                    <div class="track-actions">
-                        <button class="track-dots" data-spotify-id="${track.spotify_id}" data-yt-url="${track.youtube_url || ''}">···</button>
-                    </div>`;
- 
-                if (track.downloaded) {
-                    el.addEventListener("click", () => {
-                        Queue.loadPlaylist(downloadedTracks, "search");
-                        const qi = downloadedTracks.findIndex(t => t.spotify_id === track.spotify_id);
-                        Queue.playAt(qi, true);
-                        Player.play(Queue.getCurrent());
-                        highlightCurrentTrack();
-                    });
+                if (!results.length || results.error) {
+                    titleEl.textContent = `Nenhum resultado para "${query}"`;
+                    return;
                 }
  
-                el.querySelector(".track-dots").addEventListener("click", (evt) => {
-                    evt.stopPropagation();
-                    openTrackPopup(evt.currentTarget, track);
+                titleEl.textContent = `${results.length} resultado${results.length !== 1 ? "s" : ""} para "${query}"`;
+ 
+                results.forEach(r => {
+                    const el = document.createElement("div");
+                    el.className     = "track-item";
+                    el.style.cssText = "position:relative;top:auto;";
+                    el.innerHTML = `
+                        <div class="track-num"></div>
+                        <img class="track-cover" src="${r.thumbnail}" loading="lazy" onerror="this.style.opacity='0.2'">
+                        <div>
+                            <div class="track-title">${escapeHtml(r.title)}</div>
+                            <div class="track-artist">${escapeHtml(r.artist)}</div>
+                        </div>
+                        <div class="track-album"></div>
+                        <div class="track-plays"></div>
+                        <div class="track-duration">${formatDuration(r.duration_ms)}</div>
+                        <div class="track-actions">
+                            <button class="btn btn-accent yt-add-btn" style="font-size:11px;padding:4px 10px;">+ Adicionar</button>
+                        </div>`;
+ 
+                    el.querySelector(".yt-add-btn").addEventListener("click", (evt) => {
+                        evt.stopPropagation();
+                        openAddToPlaylistModal(r);
+                    });
+ 
+                    list.appendChild(el);
                 });
  
-                list.appendChild(el);
-            });
-        }, 300);
+            } else {
+                titleEl.textContent = `Buscando "${query}"...`;
+                list.innerHTML      = "";
+                list.style.position = "relative";
+                list.style.height   = "0px";
+ 
+                const tracks = await fetchTrackSearch(query);
+ 
+                if (thisRequestId !== searchRequestId) return;
+ 
+                titleEl.textContent = tracks.length
+                    ? `${tracks.length} resultado${tracks.length !== 1 ? "s" : ""} para "${query}"`
+                    : `Nenhum resultado para "${query}"`;
+ 
+                list.style.height = `${tracks.length * getItemHeight()}px`;
+ 
+                const downloadedTracks = tracks.filter(t => t.downloaded);
+ 
+                tracks.forEach((track, i) => {
+                    const el = document.createElement("div");
+                    el.className         = "track-item" + (track.downloaded ? "" : " track-not-downloaded");
+                    el.dataset.id = track.id;
+                    el.style.cssText     = `position:absolute;top:${i * getItemHeight()}px;width:100%;`;
+                    el.innerHTML = `
+                        <div class="track-num">${i + 1}</div>
+                        <img class="track-cover" src="${coverUrl(track.id)}" loading="lazy" onerror="this.style.opacity='0.2'">
+                        <div>
+                            <div class="track-title">${decodeHtml(track.title)}</div>
+                            <div class="track-artist">${decodeHtml(track.artist)}</div>
+                        </div>
+                        <div class="track-album">${decodeHtml(track.album)}</div>
+                        <div class="track-plays" style="font-size:12px;color:var(--text-3);">${track.play_count || 0}</div>
+                        <div class="track-duration">${formatDuration(track.duration_ms)}</div>
+                        <div class="track-actions">
+                            <button class="track-dots" data-id="${track.id}" data-yt-url="${track.youtube_url || ''}">···</button>
+                        </div>`;
+ 
+                    if (track.downloaded) {
+                        el.addEventListener("click", () => {
+                            Queue.loadPlaylist(downloadedTracks, "search");
+                            const qi = downloadedTracks.findIndex(t => t.id === track.id);
+                            Queue.playAt(qi, true);
+                            Player.play(Queue.getCurrent());
+                            highlightCurrentTrack();
+                        });
+                    }
+ 
+                    el.querySelector(".track-dots").addEventListener("click", (evt) => {
+                        evt.stopPropagation();
+                        openTrackPopup(evt.currentTarget, track);
+                    });
+ 
+                    list.appendChild(el);
+                });
+            }
+        }, debounceTime);
     });
  
     document.getElementById("search-input").addEventListener("keydown", (e) => {
@@ -1180,9 +1544,6 @@ async function saveSettings() {
     const data = {
         host:            document.getElementById("cfg-host").value.trim(),
         port:            parseInt(document.getElementById("cfg-port").value),
-        yt_dlp_browser:  document.getElementById("cfg-browser").value.trim(),
-        client_id:       document.getElementById("cfg-client-id").value.trim(),
-        client_secret:   document.getElementById("cfg-client-secret").value.trim(),
     };
     status.textContent = "Salvando...";
     status.style.color = "var(--text-3)";
@@ -1206,6 +1567,181 @@ function isMobile() {
     return window.innerWidth <= 768;
 }
 
+async function openCreatePlaylistModal() {
+    const fields = [
+        { id: "pl-name",        label: "Nome",      placeholder: "Minha playlist" },
+        { id: "pl-description", label: "Descrição", placeholder: "Opcional" },
+    ];
+
+    const ok = await showPrompt({ title: "Nova playlist", fields, confirmLabel: "Criar" });
+    if (!ok) return;
+
+    const name = fields[0].value?.trim();
+    if (!name) return;
+
+    const description = fields[1].value?.trim() || "";
+    const result = await createPlaylist(name, description);
+    if (result.status === "ok") {
+        await loadSidebar();
+        openPlaylist(result.id, result.name);
+    }
+}
+
+async function openAddToPlaylistModal(ytTrack) {
+    const playlists = await fetchPlaylists();
+
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+        <div class="modal">
+            <div class="modal-title">Adicionar à playlist</div>
+            <div class="modal-body">
+                <div style="font-size:13px;color:var(--text);margin-bottom:12px;font-weight:500;">
+                    ${escapeHtml(ytTrack.title)}
+                </div>
+                <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">
+                    Playlists
+                </div>
+                <div id="playlist-checklist" style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto;">
+                    ${playlists.map(p => `
+                        <label style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;background:var(--bg-2);border:1px solid var(--border);">
+                            <input type="checkbox" value="${p.id}" style="accent-color:var(--accent);width:16px;height:16px;">
+                            <span style="font-size:13px;color:var(--text);">${escapeHtml(p.name)}</span>
+                        </label>
+                    `).join("")}
+                    ${!playlists.length ? `<div style="color:var(--text-3);font-size:13px;">Nenhuma playlist criada ainda.</div>` : ""}
+                </div>
+                <div style="font-size:11px;color:var(--text-3);margin-top:10px;">
+                    Deixe tudo desmarcado para baixar sem adicionar a nenhuma playlist.
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" id="modal-cancel">Cancelar</button>
+                <button class="btn btn-accent" id="modal-confirm">Baixar</button>
+            </div>
+        </div>`;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector("#modal-cancel").addEventListener("click", () => overlay.remove());
+
+    overlay.querySelector("#modal-confirm").addEventListener("click", async () => {
+        const checked = [...overlay.querySelectorAll("#playlist-checklist input:checked")]
+            .map(el => el.value);
+
+        overlay.remove();
+
+        const result = await addYoutubeTrack(ytTrack.youtube_url, checked, {
+            title:       ytTrack.title,
+            artist:      ytTrack.artist,
+            duration_ms: ytTrack.duration_ms,
+        });
+
+        if (result.status === "ok") {
+            await loadSidebar();
+        }
+    });
+
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+}
+
+// document.getElementById("mp3-file-input").addEventListener("change", async (e) => {
+//     const file = e.target.files[0];
+//     if (!file) return;
+
+//     document.getElementById("mp3-file-name").textContent = file.name;
+
+//     const preview = await uploadTrack(file);
+//     if (preview.error) {
+//         alert("Erro: " + preview.error);
+//         return;
+//     }
+
+//     openConfirmUploadModal(preview);
+//     e.target.value = ""; // reseta o input
+// });
+
+async function openConfirmUploadModal(preview) {
+    const playlists = await fetchPlaylists();
+
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+        <div class="modal" style="min-width:380px;max-width:500px;">
+            <div class="modal-title">Confirmar música</div>
+            <div class="modal-body">
+                <div style="display:flex;gap:16px;align-items:center;margin-bottom:20px;">
+                    ${preview.cover_path
+                        ? `<img src="/media/track/${preview.tmp_id}/cover" style="width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--bg-3);">`
+                        : `<div style="width:64px;height:64px;border-radius:8px;background:var(--bg-3);display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-music" style="color:var(--text-3);font-size:24px;"></i></div>`
+                    }
+                    <div style="flex:1;font-size:12px;color:var(--text-3);">Edite os metadados antes de confirmar</div>
+                </div>
+
+                ${[
+                    { id: "up-title",  label: "Título",   value: preview.title  },
+                    { id: "up-artist", label: "Artista",  value: preview.artist },
+                    { id: "up-album",  label: "Álbum",    value: preview.album  },
+                ].map(f => `
+                    <div style="margin-bottom:12px;">
+                        <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">${f.label}</div>
+                        <input id="${f.id}" class="url-input" style="width:100%;" value="${escapeHtml(f.value)}" autocomplete="off">
+                    </div>
+                `).join("")}
+
+                <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">Adicionar à playlist</div>
+                <div style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;">
+                    ${playlists.map(p => `
+                        <label style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;background:var(--bg-2);border:1px solid var(--border);">
+                            <input type="checkbox" value="${p.id}" style="accent-color:var(--accent);width:16px;height:16px;">
+                            <span style="font-size:13px;color:var(--text);">${escapeHtml(p.name)}</span>
+                        </label>
+                    `).join("")}
+                    ${!playlists.length ? `<div style="color:var(--text-3);font-size:13px;">Nenhuma playlist criada ainda.</div>` : ""}
+                </div>
+                <div style="font-size:11px;color:var(--text-3);margin-top:8px;">Deixe desmarcado para salvar sem playlist.</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" id="modal-cancel">Cancelar</button>
+                <button class="btn btn-accent" id="modal-confirm">Adicionar</button>
+            </div>
+        </div>`;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector("#modal-cancel").addEventListener("click", () => overlay.remove());
+
+    overlay.querySelector("#modal-confirm").addEventListener("click", async () => {
+        const data = {
+            tmp_id:      preview.tmp_id,
+            tmp_path:    preview.tmp_path,
+            cover_path:  preview.cover_path,
+            title:       overlay.querySelector("#up-title").value.trim()  || preview.title,
+            artist:      overlay.querySelector("#up-artist").value.trim() || preview.artist,
+            album:       overlay.querySelector("#up-album").value.trim()  || preview.album,
+            duration_ms: preview.duration_ms,
+        };
+        const checked = [...overlay.querySelectorAll("input[type=checkbox]:checked")]
+            .map(el => el.value);
+
+        overlay.remove();
+
+        const result = await confirmUpload(data, checked);
+        if (result.status === "ok") {
+            await loadSidebar();
+            document.getElementById("mp3-file-name").textContent = "Nenhum arquivo selecionado";
+        } else {
+            alert("Erro: " + result.error);
+        }
+    });
+
+    overlay.addEventListener("click", (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     loadSidebar().then(() => restoreState());
     initDownloads();
@@ -1216,3 +1752,4 @@ document.addEventListener("DOMContentLoaded", () => {
         Player.seek((e.clientX - rect.left) / rect.width);
     });
 });
+

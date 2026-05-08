@@ -5,11 +5,11 @@ from models import Session, Track
 
 media_bp = Blueprint("media", __name__)
 
-@media_bp.route("/track/<spotify_id>/audio")
-def serve_audio(spotify_id):
+@media_bp.route("/track/<id>/audio")
+def serve_audio(id):
     session = Session()
     try:
-        track = session.get(Track, spotify_id)
+        track = session.get(Track, id)
         if not track or not track.mp3_path:
             abort(404)
         full_path = os.path.join(MUSIC_DIR, track.mp3_path)
@@ -19,11 +19,11 @@ def serve_audio(spotify_id):
     finally:
         session.close()
 
-@media_bp.route("/track/<spotify_id>/cover")
-def serve_cover(spotify_id):
+@media_bp.route("/track/<id>/cover")
+def serve_cover(id):
     session = Session()
     try:
-        track = session.get(Track, spotify_id)
+        track = session.get(Track, id)
         if not track or not track.cover_path:
             abort(404)
         full_path = os.path.join(COVERS_DIR, track.cover_path)

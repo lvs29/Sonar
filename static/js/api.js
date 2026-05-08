@@ -53,8 +53,8 @@ async function fetchOrphans() {
     return (await r.json()).map(sanitizeTrack);
 }
 
-async function setTrackUrl(spotifyId, youtubeUrl) {
-    const r = await fetch(`${API}/library/track/${spotifyId}/set-url`, {
+async function setTrackUrl(id, youtubeUrl) {
+    const r = await fetch(`${API}/library/track/${id}/set-url`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify({youtube_url: youtubeUrl})
@@ -72,8 +72,8 @@ async function retryFailedApi() {
     return r.json();
 }
 
-function audioUrl(spotifyId) { return `${API}/media/track/${spotifyId}/audio`; }
-function coverUrl(spotifyId) { return `${API}/media/track/${spotifyId}/cover`; }
+function audioUrl(id) { return `${API}/media/track/${id}/audio`; }
+function coverUrl(id) { return `${API}/media/track/${id}/cover`; }
 function queueStreamUrl() { return `${API}/library/queue/stream`; }
 
 async function fetchPlaylistPreview(playlistId) {
@@ -92,8 +92,8 @@ async function fetchTrackSearch(query) {
     return (await r.json()).map(sanitizeTrack);
 }
 
-async function fetchTrackStatus(spotifyId) {
-    const r = await fetch(`${API}/library/track/${spotifyId}/status`);
+async function fetchTrackStatus(id) {
+    const r = await fetch(`${API}/library/track/${id}/status`);
     return r.json();
 }
 
@@ -113,8 +113,8 @@ async function fetchAllTracks() {
     return (await r.json()).map(sanitizeTrack);
 }
 
-async function deleteOrphanTrack(spotifyId, withFiles = false) {
-    const r = await fetch(`${API}/library/track/${spotifyId}?files=${withFiles}`, { method: "DELETE" });
+async function deleteOrphanTrack(id, withFiles = false) {
+    const r = await fetch(`${API}/library/track/${id}?files=${withFiles}`, { method: "DELETE" });
     return r.json();
 }
 
@@ -132,10 +132,134 @@ async function saveConfig(data) {
     return r.json();
 }
 
-async function trackPlayed(spotifyId, completed = false) {
-    await fetch(`${API}/library/track/${spotifyId}/played`, {
+async function trackPlayed(id, completed = false) {
+    await fetch(`${API}/library/track/${id}/played`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed }),
     });
+}
+
+async function createPlaylist(name, description = "") {
+    const r = await fetch(`${API}/library/playlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description }),
+    });
+    return r.json();
+}
+
+async function fetchYoutubeSearch(query) {
+    const r = await fetch(`${API}/library/youtube/search?q=${encodeURIComponent(query)}`);
+    return r.json();
+}
+
+async function addYoutubeTrack(youtubeUrl, playlistIds = [], meta = {}) {
+    const r = await fetch(`${API}/library/track/add-youtube`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            youtube_url:  youtubeUrl,
+            playlist_ids: playlistIds,
+            title:        meta.title,
+            artist:       meta.artist,
+            duration_ms:  meta.duration_ms,
+        }),
+    });
+    return r.json();
+}
+
+async function uploadTrack(file) {
+    const form = new FormData();
+    form.append("file", file);
+    const r = await fetch(`${API}/library/track/upload`, {
+        method: "POST",
+        body: form,
+    });
+    return r.json();
+}
+
+async function confirmUpload(data, playlistIds = []) {
+    const r = await fetch(`${API}/library/track/confirm-upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, playlist_ids: playlistIds }),
+    });
+    return r.json();
+}
+
+async function uploadPlaylistCover(playlistId, file) {
+    const form = new FormData();
+    form.append("file", file);
+    const r = await fetch(`${API}/library/playlist/${playlistId}/cover`, {
+        method: "POST",
+        body: form,
+    });
+    return r.json();
+}
+
+async function setPlaylistCoverUrl(playlistId, url) {
+    const r = await fetch(`${API}/library/playlist/${playlistId}/cover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cover_url: url }),
+    });
+    return r.json();
+}
+
+async function updateTrack(id, data) {
+    const r = await fetch(`${API}/library/track/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    });
+    return r.json();
+}
+
+async function uploadTrackCover(id, file) {
+    const form = new FormData();
+    form.append("file", file);
+    const r = await fetch(`${API}/library/track/${id}/cover`, {
+        method: "POST",
+        body: form,
+    });
+    return r.json();
+}
+
+async function setTrackCoverUrl(id, url) {
+    const r = await fetch(`${API}/library/track/${id}/cover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cover_url: url }),
+    });
+    return r.json();
+}
+
+async function fetchArtists(q) {
+    const r = await fetch(`${API}/library/tracks/artists?q=${encodeURIComponent(q)}`);
+    return r.json();
+}
+
+async function fetchAlbums(q) {
+    const r = await fetch(`${API}/library/tracks/albums?q=${encodeURIComponent(q)}`);
+    return r.json();
+}
+
+async function updateTrackPlaylists(trackId, playlistIds) {
+    const r = await fetch(`${API}/library/track/${trackId}/playlists`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ playlist_ids: playlistIds }),
+    });
+    return r.json();
+}
+
+async function replaceTrackFile(trackId, file) {
+    const form = new FormData();
+    form.append("file", file);
+    const r = await fetch(`${API}/library/track/${trackId}/replace-file`, {
+        method: "POST",
+        body: form,
+    });
+    return r.json();
 }

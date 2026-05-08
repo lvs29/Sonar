@@ -22,16 +22,25 @@ const Player = (() => {
         return `${m}:${sec.toString().padStart(2, "0")}`;
     }
 
+    function decodeHtml(str) {
+        const txt = document.createElement("textarea");
+        txt.innerHTML = str;
+        return txt.value;
+    }
+
     function _updateUI(track) {
         if (!track) return;
-        playerTitle.textContent     = track.title;
-        playerTitle.dataset.title   = track.title;
-        playerTitle.title           = track.title;
-        playerArtist.textContent    = track.artist;
-        playerCover.src             = audioUrl(track.spotify_id).replace("/audio", "/cover");
+        const decodedTitle = decodeHtml(track.title);
+        const decodedArtist = decodeHtml(track.artist);
+        
+        playerTitle.textContent     = decodedTitle;
+        playerTitle.dataset.title   = decodedTitle;
+        playerTitle.title           = decodedTitle;
+        playerArtist.textContent    = decodedArtist;
+        playerCover.src             = audioUrl(track.id).replace("/audio", "/cover");
         playerCover.onerror         = () => { playerCover.src = ""; };
         
-        document.title = `${track.title} | Sonar`;
+        document.title = `${decodedTitle} | Sonar`;
 
         // sincroniza mini player mobile
         const miniCover  = document.getElementById("player-cover-mini");
@@ -41,9 +50,9 @@ const Player = (() => {
         const miniArtist = document.getElementById("player-artist-mini");
         const fullArtist = document.getElementById("player-artist-full");
 
-        if (miniCover)  miniCover.src  = fullCover.src  = audioUrl(track.spotify_id).replace("/audio", "/cover");
-        if (miniTitle)  miniTitle.textContent  = fullTitle.textContent  = track.title;
-        if (miniArtist) miniArtist.textContent = fullArtist.textContent = track.artist;
+        if (miniCover)  miniCover.src  = fullCover.src  = audioUrl(track.id).replace("/audio", "/cover");
+        if (miniTitle)  miniTitle.textContent  = fullTitle.textContent  = decodedTitle;
+        if (miniArtist) miniArtist.textContent = fullArtist.textContent = decodedArtist;
     }
 
     function _setPlaying(playing) {
@@ -68,7 +77,7 @@ const Player = (() => {
     function play(track) {
         if (!track) return;
         audio.pause();
-        audio.src = `${API}/media/track/${track.spotify_id}/audio`;
+        audio.src = `${API}/media/track/${track.id}/audio`;
         const playPromise = audio.play();
         if (playPromise) {
             playPromise.catch(e => {
@@ -78,7 +87,7 @@ const Player = (() => {
         _updateUI(track);
         _setPlaying(true);
         localStorage.setItem("sonar_time", "0");
-        trackPlayed(track.spotify_id, false);
+        trackPlayed(track.id, false);
     }
 
     function togglePlay() {
@@ -133,7 +142,7 @@ const Player = (() => {
 
     audio.addEventListener("ended", () => {
         const current = Queue.getCurrent();
-        if (current) trackPlayed(current.spotify_id, true); // <- adiciona
+        if (current) trackPlayed(current.id, true); // <- adiciona
         const next = Queue.advance();
         if (next) play(next);
     });
@@ -170,7 +179,7 @@ const Player = (() => {
     });
 
     // init volume
-    setVolume(0.8);
+    setVolume(0.5);
 
     return { play, togglePlay, seek, setVolume, getCurrentTime, getDuration };
 })();

@@ -39,12 +39,22 @@
   <!-- main -->
   <div id="main">
     <!-- busca global — sempre visível na biblioteca e resultados -->
-    <div id="search-bar" style="padding:8px 48px;border-bottom:1px solid var(--border);">
-        <div style="position:relative;">
-            <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-3);font-size:13px;"></i>
-            <input id="search-input" autocomplete="off" placeholder="Buscar músicas..."
-                   style="width:100%;background:var(--bg-2);border:1px solid var(--border);border-radius:6px;
-                          padding:7px 10px 7px 32px;color:var(--text);font-size:13px;outline:none;">
+    <div id="search-bar">
+        <div class="search-wrapper">
+            
+            <div class="search-mode-box">
+                <select class="search-mode-select" id="search-mode-select">
+                    <option value="local"><i class="fa-solid fa-folder-open"></i> Local</option>
+                    <option value="web"><i class="fa-solid fa-globe"></i> Web</option>
+                </select>
+            </div>
+
+            <input
+            id="search-input"
+            autocomplete="off"
+            placeholder="Buscar músicas na biblioteca..."
+            type="text"
+            />
         </div>
     </div>
 
@@ -100,6 +110,12 @@
         <div class="dl-current-label">Baixando agora</div>
         <div class="dl-current-track" id="dl-current-track"></div>
       </div>
+
+      <div class="manage-section">
+        <h2>Falharam no download</h2>
+        <div id="failed-list"></div>
+        <button class="btn btn-accent" style="margin-top:12px;" onclick="retryFailed()">Tentar novamente todos</button>
+      </div>
     </div>
 
     <!-- view: manage -->
@@ -115,18 +131,6 @@
                     <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">Porta</div>
                     <input class="url-input" id="cfg-port" style="width:100%;" type="number" placeholder="8000">
                 </div>
-                <div>
-                    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">Browser (yt-dlp cookies)</div>
-                    <input class="url-input" id="cfg-browser" style="width:100%;" placeholder="chromium">
-                </div>
-                <div>
-                    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">CLIENT ID (Spotify)</div>
-                    <input class="url-input" id="cfg-client-id" style="width:100%;" placeholder="">
-                </div>
-                <div>
-                    <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">CLIENT SECRET (Spotify)</div>
-                    <input class="url-input" id="cfg-client-secret" style="width:100%;" placeholder="">
-                </div>
                 <div style="display:flex;align-items:center;gap:12px;">
                     <button class="btn btn-accent" onclick="saveSettings()">Salvar</button>
                     <span id="cfg-status" style="font-size:12px;color:var(--text-3);"></span>
@@ -134,33 +138,6 @@
                 <p style="font-size:12px;color:var(--text-3);">Alterações de host e porta só têm efeito após reiniciar o servidor.</p>
             </div>
         </div>
-        <div class="manage-section">
-            <h2>Adicionar playlist</h2>
-            <div style="max-width:500px;">
-                <div style="margin-bottom:20px;">
-                    <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">URL ou ID da playlist do Spotify</div>
-                    <input class="url-input" id="add-playlist-input" style="width:100%;font-size:14px;padding:10px 14px;" autocomplete="off"
-                        placeholder="https://open.spotify.com/playlist/... ou ID direto">
-                </div>
-                <div id="add-playlist-preview" style="display:none;margin-bottom:20px;background:var(--bg-2);border-radius:8px;padding:16px;align-items:center;gap:16px;">
-                    <img id="preview-cover" style="width:64px;height:64px;border-radius:6px;object-fit:cover;background:var(--bg-3);">
-                    <div>
-                        <div id="preview-name" style="font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;"></div>
-                        <div id="preview-meta" style="font-size:12px;color:var(--text-3);"></div>
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;">
-                    <button class="btn" id="btn-preview-playlist">Buscar</button>
-                    <button class="btn btn-accent" id="btn-confirm-add" style="display:none;">Adicionar e sincronizar</button>
-                </div>
-                <div id="add-playlist-status" style="margin-top:16px;font-size:13px;color:var(--text-3);"></div>
-            </div>
-        </div>
-      <div class="manage-section">
-        <h2>Falharam no download</h2>
-        <div id="failed-list"></div>
-        <button class="btn btn-accent" style="margin-top:12px;" onclick="retryFailed()">Tentar novamente todos</button>
-      </div>
       <div class="manage-section">
         <h2>Tracks órfãs</h2>
         <div id="orphan-list"></div>

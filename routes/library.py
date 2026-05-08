@@ -1,26 +1,44 @@
 # routes/library.py
-from flask import Blueprint, jsonify, request, Response, stream_with_context
+from flask import Blueprint, jsonify, request, Response, stream_with_context, abort
 from services.library import (
-    sync_playlist,
     get_orphan_tracks,
     delete_orphan_tracks,
     get_playlist_tracks_from_db,
+    set_track_playlists,
 )
-from services.downloader import enqueue_playlist, get_queue_status, set_youtube_url
+from services.downloader import enqueue_playlist, get_queue_status, set_youtube_url, add_youtube_track
 import json
 import os
 import time as time_module
+from datetime import datetime, timezone
 from models import Session, Playlist, Track, PlaylistTrack, DownloadJob
 from config import load_config, save_config
 
 library_bp = Blueprint("library", __name__)
 
 
-@library_bp.route("/sync/<playlist_id>", methods=["POST"])
-def sync(playlist_id):
-    result = sync_playlist(playlist_id)
-    return jsonify(result)
-
+@library_bp.route("/playlist", methods=["POST"])
+def create_playlist():
+    data = request.get_json()
+    name = data.get("name", "").strip()
+    if not name:
+        return jsonify({"error": "nome obrigatório"}), 400
+    session = Session()
+    try:
+        playlist = Playlist(
+            id          = str(__import__("uuid").uuid4()),
+            name        = name,
+            description = data.get("description", ""),
+            last_synced = datetime.now(timezone.utc),
+        )
+        session.add(playlist)
+        session.commit()
+        return jsonify({"status": "ok", "id": playlist.id, "name": playlist.name})
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
 
 @library_bp.route("/playlist/<playlist_id>")
 def playlist_tracks(playlist_id):
@@ -44,15 +62,15 @@ def download_playlist(playlist_id):
     result = enqueue_playlist(playlist_id)
     return jsonify(result), 202
 
-@library_bp.route("/track/<spotify_id>/set-url", methods=["POST"])
-def set_track_url(spotify_id):
+@library_bp.route("/track/<id>/set-url", methods=["POST"])
+def set_track_url(id):
     data = request.get_json()
     youtube_url = data.get("youtube_url")
     if not youtube_url:
         return jsonify({"error": "youtube_url é obrigatório"}), 400
     try:
         from services.downloader import set_youtube_url
-        result = set_youtube_url(spotify_id, youtube_url)
+        result = set_youtube_url(id, youtube_url)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -69,14 +87,14 @@ def queue_stream():
         while True:
             from services.downloader import get_queue_status
             from models import Session as S, DownloadJob, Track
-
+            
             status = get_queue_status()
-
+            
             # pega a track sendo baixada agora
             session = S()
             try:
                 current = session.query(DownloadJob, Track)\
-                    .join(Track, DownloadJob.track_id == Track.spotify_id)\
+                    .join(Track, DownloadJob.track_id == Track.id)\
                     .filter(DownloadJob.status == "downloading")\
                     .first()
                 current_track = None
@@ -109,7 +127,7 @@ def list_playlists():
     try:
         playlists = session.query(Playlist).all()
         return jsonify([{
-            "spotify_id":   p.spotify_id,
+            "id":   p.id,
             "name":         p.name,
             "description":  p.description or "",
             "last_synced":  p.last_synced.isoformat() if p.last_synced else None,
@@ -122,11 +140,11 @@ def list_failed():
     session = Session()
     try:
         results = session.query(DownloadJob, Track)\
-            .join(Track, DownloadJob.track_id == Track.spotify_id)\
+            .join(Track, DownloadJob.track_id == Track.id)\
             .filter(DownloadJob.status == "failed")\
             .all()
         return jsonify([{
-            "spotify_id": t.spotify_id,
+            "id": t.id,
             "title": t.title,
             "artist": t.artist,
             "error_msg": j.error_msg,
@@ -150,53 +168,105 @@ def retry_failed():
 
 @library_bp.route("/playlist/<playlist_id>/cover")
 def playlist_cover(playlist_id):
-    import requests as req
+    from config import COVERS_DIR
+    import os
     session = Session()
     try:
         pl = session.get(Playlist, playlist_id)
-        if not pl or not pl.cover_url:
+        if not pl:
             abort(404)
-        r = req.get(pl.cover_url, timeout=10)
-        if r.status_code != 200:
-            abort(404)
-        from flask import Response
-        return Response(r.content, mimetype="image/jpeg")
+
+        # cover local tem prioridade
+        if pl.cover_path:
+            full = os.path.join(COVERS_DIR, pl.cover_path)
+            if os.path.exists(full):
+                with open(full, "rb") as f:
+                    return Response(f.read(), mimetype="image/jpeg")
+
+        # cover via URL externa
+        if pl.cover_url:
+            try:
+                import requests as req
+                r = req.get(pl.cover_url, timeout=5)
+                if r.status_code == 200:
+                    return Response(r.content, mimetype="image/jpeg")
+            except Exception:
+                pass
+
+        # placeholder SVG com iniciais
+        initials = "".join(w[0].upper() for w in pl.name.split()[:2]) or "?"
+        svg = f'''<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg">
+            <rect width="200" height="200" fill="#1a1a1a"/>
+            <text x="100" y="115" font-family="system-ui" font-size="72"
+                  font-weight="700" fill="#f5a623" text-anchor="middle">{initials}</text>
+        </svg>'''
+        return Response(svg, mimetype="image/svg+xml")
     finally:
         session.close()
 
-@library_bp.route("/playlist/<playlist_id>/preview")
-def playlist_preview(playlist_id):
-    try:
-        from utils.token_manager import get_token
-        import requests as req
-        token = get_token()
-        r = req.get(
-            f"https://api.spotify.com/v1/playlists/{playlist_id}",
-            headers={"Authorization": f"Bearer {token}"},
-            params={"fields": "id,name,images,owner.display_name,tracks.total", "market": "BR"}
-        )
-        r.raise_for_status()
-        data = r.json()
-        return jsonify({
-            "id":           data["id"],
-            "name":         data["name"],
-            "owner":        data["owner"]["display_name"],
-            "total_tracks": data.get("tracks", {}).get("total", 0),
-            "cover_url":    data["images"][0]["url"] if data.get("images") else None,
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+@library_bp.route("/playlist/<playlist_id>/cover", methods=["POST"])
+def upload_playlist_cover(playlist_id):
+    from config import COVERS_DIR
+    import shutil, tempfile, os
 
-@library_bp.route("/track/<spotify_id>/status")
-def track_status(spotify_id):
     session = Session()
     try:
-        track = session.get(Track, spotify_id)
+        pl = session.get(Playlist, playlist_id)
+        if not pl:
+            return jsonify({"error": "não encontrada"}), 404
+
+        # via URL
+        if request.is_json:
+            url = request.get_json().get("cover_url", "").strip()
+            if not url:
+                return jsonify({"error": "url obrigatória"}), 400
+            pl.cover_url  = url
+            pl.cover_path = None
+            session.commit()
+            return jsonify({"status": "ok"})
+
+        # via upload
+        if "file" not in request.files:
+            return jsonify({"error": "arquivo obrigatório"}), 400
+
+        file = request.files["file"]
+        if not file.filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
+            return jsonify({"error": "formato não suportado"}), 400
+
+        cover_name = f"playlist_{playlist_id}.jpg"
+        cover_path = os.path.join(COVERS_DIR, cover_name)
+
+        # converte pra jpg se necessário
+        try:
+            from PIL import Image
+            import io
+            img = Image.open(file.stream).convert("RGB")
+            img.save(cover_path, "JPEG", quality=90)
+        except ImportError:
+            # sem PIL, salva direto
+            file.save(cover_path)
+
+        pl.cover_path = cover_name
+        pl.cover_url  = None
+        session.commit()
+        return jsonify({"status": "ok"})
+
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+@library_bp.route("/track/<id>/status")
+def track_status(id):
+    session = Session()
+    try:
+        track = session.get(Track, id)
         if not track:
             return jsonify({"error": "não encontrada"}), 404
 
         job = session.query(DownloadJob)\
-            .filter_by(track_id=spotify_id)\
+            .filter_by(track_id=id)\
             .order_by(DownloadJob.id.desc())\
             .first()
 
@@ -217,7 +287,7 @@ def playlist_meta(playlist_id):
         if not pl:
             abort(404)
         return jsonify({
-            "spotify_id":  pl.spotify_id,
+            "id":  pl.id,
             "name":        pl.name,
             "description": pl.description or "",
             "last_synced": pl.last_synced.isoformat() if pl.last_synced else None,
@@ -256,9 +326,9 @@ def search_tracks():
             (Track.title.ilike(f"%{q}%")) |
             (Track.artist.ilike(f"%{q}%")) |
             (Track.album.ilike(f"%{q}%"))
-        ).limit(50).all()
+        ).order_by(Track.title).limit(50).all()
         return jsonify([{
-            "spotify_id":  t.spotify_id,
+            "id":  t.id,
             "title":       t.title,
             "artist":      t.artist,
             "album":       t.album,
@@ -275,12 +345,12 @@ def all_tracks():
     session = Session()
     try:
         results = session.query(Track)\
-            .join(PlaylistTrack, Track.spotify_id == PlaylistTrack.track_id)\
-            .distinct(Track.spotify_id)\
+            .join(PlaylistTrack, Track.id == PlaylistTrack.track_id)\
+            .distinct(Track.id)\
             .order_by(Track.title)\
             .all()
         return jsonify([{
-            "spotify_id":  t.spotify_id,
+            "id":  t.id,
             "title":       t.title,
             "artist":      t.artist,
             "album":       t.album,
@@ -292,12 +362,78 @@ def all_tracks():
     finally:
         session.close()
 
-@library_bp.route("/track/<spotify_id>", methods=["DELETE"])
-def delete_track(spotify_id):
+@library_bp.route("/track/<id>", methods=["PATCH"])
+def update_track(id):
+    data    = request.get_json()
+    allowed = {"title", "artist", "album", "description"}
+    session = Session()
+    try:
+        track = session.get(Track, id)
+        if not track:
+            return jsonify({"error": "não encontrada"}), 404
+        for key in allowed:
+            if key in data:
+                setattr(track, key, data[key])
+        session.commit()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+@library_bp.route("/track/<id>/cover", methods=["POST"])
+def upload_track_cover(id):
+    from config import COVERS_DIR
+    import os
+    session = Session()
+    try:
+        track = session.get(Track, id)
+        if not track:
+            return jsonify({"error": "não encontrada"}), 404
+
+        # via URL
+        if request.is_json:
+            url = request.get_json().get("cover_url", "").strip()
+            if not url:
+                return jsonify({"error": "url obrigatória"}), 400
+            track.cover_url  = url
+            track.cover_path = None
+            session.commit()
+            return jsonify({"status": "ok"})
+
+        # via upload
+        if "file" not in request.files:
+            return jsonify({"error": "arquivo obrigatório"}), 400
+
+        file = request.files["file"]
+        cover_name = f"{id}.jpg"
+        cover_path = os.path.join(COVERS_DIR, cover_name)
+
+        try:
+            from PIL import Image
+            img = Image.open(file.stream).convert("RGB")
+            img.save(cover_path, "JPEG", quality=90)
+        except ImportError:
+            file.save(cover_path)
+
+        track.cover_path = cover_name
+        track.cover_url  = None
+        session.commit()
+        return jsonify({"status": "ok"})
+
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+@library_bp.route("/track/<id>", methods=["DELETE"])
+def delete_track(id):
     with_files = request.args.get("files", "false").lower() == "true"
     session = Session()
     try:
-        track = session.get(Track, spotify_id)
+        track = session.get(Track, id)
         if not track:
             return jsonify({"error": "não encontrada"}), 404
 
@@ -328,7 +464,7 @@ def get_config():
 @library_bp.route("/config", methods=["POST"])
 def update_config():
     data = request.get_json()
-    allowed = {"host", "port", "yt_dlp_browser", "client_id", "client_secret"}
+    allowed = {"host", "port"}
     cfg = load_config()
     for key in allowed:
         if key in data:
@@ -336,24 +472,216 @@ def update_config():
     save_config(cfg)
     return jsonify({"status": "ok"})
 
-@library_bp.route("/track/<spotify_id>/played", methods=["POST"])
-def track_played(spotify_id):
+@library_bp.route("/track/<id>/played", methods=["POST"])
+def track_played(id):
     data      = request.get_json() or {}
     completed = data.get("completed", False)
     session   = Session()
     try:
-        track = session.get(Track, spotify_id)
+        track = session.get(Track, id)
         if not track:
             return jsonify({"error": "não encontrada"}), 404
-
+        
         if completed:
             # Música chegou ao final - incrementa apenas complete_count
             track.complete_count = (track.complete_count or 0) + 1
         else:
             # Música começou a tocar - incrementa apenas play_count
             track.play_count = (track.play_count or 0) + 1
-
+            
         session.commit()
         return jsonify({"play_count": track.play_count, "complete_count": track.complete_count})
+    finally:
+        session.close()
+
+@library_bp.route("/youtube/search")
+def youtube_search():
+    from config import get as cfg_get
+    q       = request.args.get("q", "").strip()
+    is_url  = q.startswith("http")
+
+    if not q:
+        return jsonify([])
+
+    try:
+        import subprocess
+        if is_url:
+            cmd = [
+                "yt-dlp",
+                "--print", "%(id)s\t%(title)s\t%(uploader)s\t%(duration)s\t%(thumbnail)s",
+                "--no-playlist",
+                "--quiet",
+                q,
+            ]
+        else:
+            cmd = [
+                "yt-dlp",
+                "--print", "%(id)s\t%(title)s\t%(uploader)s\t%(duration)s\t%(thumbnail)s",
+                "--playlist-end", "5",  # <- reduz de 8 pra 5
+                "--no-playlist",
+                "--quiet",
+                "--no-warnings",
+                "--extractor-args", "youtube:skip=dash,hls",  # <- pula formatos desnecessários
+                f"ytsearch5:{q}",  # <- reduz de 8 pra 5
+            ]
+
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)  # <- reduz timeout
+        results = []
+        for line in result.stdout.strip().splitlines():
+            parts = line.split("\t")
+            if len(parts) < 5:
+                continue
+            vid_id, title, uploader, duration, thumbnail = parts[:5]
+            try:
+                dur = int(float(duration))
+            except ValueError:
+                dur = 0
+            results.append({
+                "youtube_id":  vid_id,
+                "youtube_url": f"https://www.youtube.com/watch?v={vid_id}",
+                "title":       title,
+                "artist":      uploader,
+                "duration_ms": dur * 1000,
+                "thumbnail":   thumbnail,
+            })
+        return jsonify(results)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@library_bp.route("/track/add-youtube", methods=["POST"])
+def add_youtube_track_route():
+    data         = request.get_json()
+    youtube_url  = data.get("youtube_url", "").strip()
+    playlist_ids = data.get("playlist_ids", [])
+    meta         = {
+        "title":       data.get("title"),
+        "artist":      data.get("artist"),
+        "duration_ms": data.get("duration_ms"),
+        "album":       data.get("album", ""),
+    }
+    if not youtube_url:
+        return jsonify({"error": "youtube_url obrigatório"}), 400
+    try:
+        result = add_youtube_track(youtube_url, playlist_ids, meta)
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+@library_bp.route("/track/upload", methods=["POST"])
+def upload_track():
+    from services.downloader import add_local_track
+    if "file" not in request.files:
+        return jsonify({"error": "arquivo obrigatório"}), 400
+    file = request.files["file"]
+    if not file.filename.lower().endswith((".mp3", ".flac", ".ogg", ".m4a")):
+        return jsonify({"error": "formato não suportado"}), 400
+    try:
+        result = add_local_track(file)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@library_bp.route("/track/confirm-upload", methods=["POST"])
+def confirm_upload():
+    from services.downloader import confirm_local_track
+    data         = request.get_json()
+    playlist_ids = data.pop("playlist_ids", [])
+    try:
+        result = confirm_local_track(data, playlist_ids)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@library_bp.route("/tracks/artists")
+def autocomplete_artists():
+    q = request.args.get("q", "").strip()
+    session = Session()
+    try:
+        results = session.query(Track.artist)\
+            .filter(Track.artist.ilike(f"%{q}%"))\
+            .distinct()\
+            .order_by(Track.artist)\
+            .limit(8).all()
+        return jsonify([r[0] for r in results if r[0]])
+    finally:
+        session.close()
+
+@library_bp.route("/tracks/albums")
+def autocomplete_albums():
+    q = request.args.get("q", "").strip()
+    session = Session()
+    try:
+        results = session.query(Track.album)\
+            .filter(Track.album.ilike(f"%{q}%"))\
+            .distinct()\
+            .order_by(Track.album)\
+            .limit(8).all()
+        return jsonify([r[0] for r in results if r[0]])
+    finally:
+        session.close()
+
+@library_bp.route("/track/<id>/playlists")
+def get_track_playlists(id):
+    session = Session()
+    try:
+        rows = session.query(PlaylistTrack.playlist_id)\
+            .filter_by(track_id=id).all()
+        return jsonify([r[0] for r in rows])
+    finally:
+        session.close()
+
+@library_bp.route("/track/<id>/playlists", methods=["POST"])
+def set_track_playlists(id):
+    data = request.get_json()
+    playlist_ids = data.get("playlist_ids", [])
+    try:
+        result = set_track_playlists(id, playlist_ids)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@library_bp.route("/track/<id>/replace-file", methods=["POST"])
+def replace_track_file(id):
+    from config import MUSIC_DIR, COVERS_DIR
+    from services.downloader import _extract_cover
+    import os
+    session = Session()
+    try:
+        track = session.get(Track, id)
+        if not track:
+            return jsonify({"error": "não encontrada"}), 404
+
+        file = request.files.get("file")
+        if not file:
+            return jsonify({"error": "arquivo obrigatório"}), 400
+
+        ext      = os.path.splitext(file.filename)[1].lower()
+        dst_name = f"{id}{ext}"
+        dst_path = os.path.join(MUSIC_DIR, dst_name)
+
+        # remove arquivo antigo se existir
+        if track.mp3_path:
+            old = os.path.join(MUSIC_DIR, track.mp3_path)
+            if os.path.exists(old):
+                os.remove(old)
+
+        file.save(dst_path)
+
+        # tenta extrair capa
+        cover = _extract_cover(dst_path, id, COVERS_DIR)
+        if cover:
+            track.cover_path = cover
+
+        track.mp3_path   = dst_name
+        track.downloaded = True
+        session.commit()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
     finally:
         session.close()

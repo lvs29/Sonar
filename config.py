@@ -4,9 +4,8 @@ import os
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
 
 _defaults = {
-    "host":            "0.0.0.0",
-    "port":            8000,
-    "yt_dlp_browser":  "chromium",
+    "host": "0.0.0.0",
+    "port": 8000,
 }
 
 def load_config() -> dict:
