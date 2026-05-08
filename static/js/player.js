@@ -32,14 +32,14 @@ const Player = (() => {
         if (!track) return;
         const decodedTitle = decodeHtml(track.title);
         const decodedArtist = decodeHtml(track.artist);
-        
+
         playerTitle.textContent     = decodedTitle;
         playerTitle.dataset.title   = decodedTitle;
         playerTitle.title           = decodedTitle;
         playerArtist.textContent    = decodedArtist;
         playerCover.src             = audioUrl(track.id).replace("/audio", "/cover");
         playerCover.onerror         = () => { playerCover.src = ""; };
-        
+
         document.title = `${decodedTitle} | Sonar`;
 
         // sincroniza mini player mobile
@@ -53,6 +53,17 @@ const Player = (() => {
         if (miniCover)  miniCover.src  = fullCover.src  = audioUrl(track.id).replace("/audio", "/cover");
         if (miniTitle)  miniTitle.textContent  = fullTitle.textContent  = decodedTitle;
         if (miniArtist) miniArtist.textContent = fullArtist.textContent = decodedArtist;
+
+        // Media Session API - metadados
+        if ("mediaSession" in navigator) {
+            const coverUrl = `${API}/media/track/${track.id}/cover`;
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: decodedTitle,
+                artist: decodedArtist,
+                album: track.album || "",
+                artwork: [{ src: coverUrl, sizes: "512x512", type: "image/jpeg" }]
+            });
+        }
     }
 
     function _setPlaying(playing) {
@@ -68,6 +79,11 @@ const Player = (() => {
         if (iconPauseMini) iconPauseMini.style.display = playing ? "inline" : "none";
         if (iconPlayFull)  iconPlayFull.style.display  = playing ? "none"   : "inline";
         if (iconPauseFull) iconPauseFull.style.display = playing ? "inline" : "none";
+
+        // Media Session API - estado de playback
+        if ("mediaSession" in navigator) {
+            navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+        }
     }
 
     // ========================
@@ -131,6 +147,15 @@ const Player = (() => {
         if (Math.floor(audio.currentTime) % 5 === 0) {
             localStorage.setItem("sonar_time", Math.floor(audio.currentTime));
         }
+
+        // Media Session API - posição de reprodução
+        if ("mediaSession" in navigator) {
+            navigator.mediaSession.setPositionState({
+                duration: audio.duration,
+                playbackRate: audio.playbackRate,
+                position: audio.currentTime
+            });
+        }
     });
 
     audio.addEventListener("loadedmetadata", () => {
@@ -180,6 +205,37 @@ const Player = (() => {
 
     // init volume
     setVolume(0.5);
+
+    // Media Session API - handlers de ação
+    if ("mediaSession" in navigator) {
+        navigator.mediaSession.setActionHandler("play", () => {
+            audio.play();
+        });
+
+        navigator.mediaSession.setActionHandler("pause", () => {
+            audio.pause();
+        });
+
+        navigator.mediaSession.setActionHandler("previoustrack", () => {
+            if (audio.currentTime > 3) {
+                audio.currentTime = 0;
+            } else {
+                const prev = Queue.previous();
+                if (prev) play(prev);
+            }
+        });
+
+        navigator.mediaSession.setActionHandler("nexttrack", () => {
+            const next = Queue.advance();
+            if (next) play(next);
+        });
+
+        navigator.mediaSession.setActionHandler("seekto", (details) => {
+            if (details.seekTime && audio.duration) {
+                audio.currentTime = details.seekTime;
+            }
+        });
+    }
 
     return { play, togglePlay, seek, setVolume, getCurrentTime, getDuration };
 })();

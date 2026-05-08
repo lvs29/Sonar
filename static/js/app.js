@@ -1379,6 +1379,18 @@ async function restoreState() {
     document.getElementById("player-artist").textContent = track.artist;
     document.getElementById("player-cover").src          = coverUrl(track.id);
 
+    // Media Session API - atualiza metadados ao restaurar estado
+    if ("mediaSession" in navigator) {
+        const coverUrl = `${API}/media/track/${track.id}/cover`;
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: track.title,
+            artist: track.artist,
+            album: track.album || "",
+            artwork: [{ src: coverUrl, sizes: "512x512", type: "image/jpeg" }]
+        });
+        navigator.mediaSession.playbackState = "paused";
+    }
+
     const miniCover  = document.getElementById("player-cover-mini");
     const fullCover  = document.getElementById("player-cover-full");
     const miniTitle  = document.getElementById("player-title-mini");
@@ -1703,21 +1715,21 @@ async function openAddToPlaylistModal(ytTrack) {
     });
 }
 
-// document.getElementById("mp3-file-input").addEventListener("change", async (e) => {
-//     const file = e.target.files[0];
-//     if (!file) return;
+document.getElementById("mp3-file-input").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
-//     document.getElementById("mp3-file-name").textContent = file.name;
+    document.getElementById("mp3-file-name").textContent = file.name;
 
-//     const preview = await uploadTrack(file);
-//     if (preview.error) {
-//         alert("Erro: " + preview.error);
-//         return;
-//     }
+    const preview = await uploadTrack(file);
+    if (preview.error) {
+        alert("Erro: " + preview.error);
+        return;
+    }
 
-//     openConfirmUploadModal(preview);
-//     e.target.value = ""; // reseta o input
-// });
+    openConfirmUploadModal(preview);
+    e.target.value = ""; // reseta o input
+});
 
 async function openConfirmUploadModal(preview) {
     const playlists = await fetchPlaylists();
@@ -1729,11 +1741,17 @@ async function openConfirmUploadModal(preview) {
             <div class="modal-title">Confirmar música</div>
             <div class="modal-body">
                 <div style="display:flex;gap:16px;align-items:center;margin-bottom:20px;">
-                    ${preview.cover_path
-                        ? `<img src="/media/track/${preview.tmp_id}/cover" style="width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--bg-3);">`
-                        : `<div style="width:64px;height:64px;border-radius:8px;background:var(--bg-3);display:flex;align-items:center;justify-content:center;"><i class="fa-solid fa-music" style="color:var(--text-3);font-size:24px;"></i></div>`
-                    }
-                    <div style="flex:1;font-size:12px;color:var(--text-3);">Edite os metadados antes de confirmar</div>
+                    <img id="up-cover-preview"
+                         src="${preview.cover_path ? `/media/track/${preview.tmp_id}/cover` : ''}"
+                         style="width:64px;height:64px;border-radius:8px;object-fit:cover;background:var(--bg-3);"
+                         onerror="this.style.opacity='0.2'">
+                    <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
+                        <button class="btn" id="up-cover-upload" style="font-size:11px;padding:4px 8px;">
+                            <i class="fa-solid fa-upload"></i> Capa
+                        </button>
+                        <input id="up-cover-url" class="url-input" placeholder="URL da capa..." style="margin:0;font-size:11px;">
+                    </div>
+                    <input type="file" id="up-cover-file" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
                 </div>
 
                 ${[
@@ -1767,6 +1785,27 @@ async function openConfirmUploadModal(preview) {
 
     document.body.appendChild(overlay);
 
+    // init autocomplete para artista e álbum
+    initAutocomplete(overlay.querySelector("#up-artist"), fetchArtists);
+    initAutocomplete(overlay.querySelector("#up-album"),  fetchAlbums);
+
+    // upload de capa
+    overlay.querySelector("#up-cover-upload").addEventListener("click", () => {
+        overlay.querySelector("#up-cover-file").click();
+    });
+
+    overlay.querySelector("#up-cover-file").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                overlay.querySelector("#up-cover-preview").src = ev.target.result;
+                overlay.querySelector("#up-cover-preview").style.opacity = "1";
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
     overlay.querySelector("#modal-cancel").addEventListener("click", () => overlay.remove());
 
     overlay.querySelector("#modal-confirm").addEventListener("click", async () => {
@@ -1782,10 +1821,17 @@ async function openConfirmUploadModal(preview) {
         const checked = [...overlay.querySelectorAll("input[type=checkbox]:checked")]
             .map(el => el.value);
 
+        const coverFile = overlay.querySelector("#up-cover-file").files[0];
+        const coverUrl_ = overlay.querySelector("#up-cover-url").value.trim();
+
         overlay.remove();
 
         const result = await confirmUpload(data, checked);
         if (result.status === "ok") {
+            // upload de capa se foi selecionado
+            if (coverFile) await uploadTrackCover(result.id, coverFile);
+            else if (coverUrl_) await setTrackCoverUrl(result.id, coverUrl_);
+
             await loadSidebar();
             document.getElementById("mp3-file-name").textContent = "Nenhum arquivo selecionado";
         } else {
