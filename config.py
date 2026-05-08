@@ -2,6 +2,9 @@ import json
 import os
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+if not os.path.exists(CONFIG_PATH):
+    with open(CONFIG_PATH, "w") as f:
+        json.dump({}, f)
 
 _defaults = {
     "host": "0.0.0.0",

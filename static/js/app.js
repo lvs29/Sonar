@@ -11,6 +11,50 @@ function decodeHtml(str) {
     return txt.value;
 }
 
+function showConfirm(options) {
+    return new Promise((resolve) => {
+        const modal = document.getElementById("confirm-modal");
+        const titleEl = document.getElementById("confirm-title");
+        const bodyEl = document.getElementById("confirm-body");
+        const okBtn = document.getElementById("confirm-ok");
+        const cancelBtn = document.getElementById("confirm-cancel");
+
+        // suporta tanto string quanto objeto
+        if (typeof options === "string") {
+            titleEl.textContent = "Confirmação";
+            bodyEl.textContent = options;
+            okBtn.textContent = "Confirmar";
+            okBtn.className = "btn btn-accent";
+        } else {
+            titleEl.textContent = options.title || "Confirmação";
+            bodyEl.innerHTML = options.body || options.message || "";
+            okBtn.textContent = options.confirmLabel || "Confirmar";
+            okBtn.className = options.danger ? "btn btn-danger-solid" : "btn btn-accent";
+        }
+
+        modal.style.display = "flex";
+
+        const cleanup = () => {
+            modal.style.display = "none";
+            okBtn.removeEventListener("click", onOk);
+            cancelBtn.removeEventListener("click", onCancel);
+        };
+
+        const onOk = () => {
+            cleanup();
+            resolve(true);
+        };
+
+        const onCancel = () => {
+            cleanup();
+            resolve(false);
+        };
+
+        okBtn.addEventListener("click", onOk);
+        cancelBtn.addEventListener("click", onCancel);
+    });
+}
+
 // ========================
 // navegação
 // ========================
@@ -1188,14 +1232,26 @@ async function retryFailed() {
 }
 
 async function deleteOrphans() {
-    if (!confirm("Remover tracks órfãs do banco?")) return;
+    const ok = await showConfirm({
+        title: "Remover tracks órfãs",
+        body: "Remover tracks órfãs do banco de dados?",
+        confirmLabel: "Remover",
+        danger: true,
+    });
+    if (!ok) return;
     const r = await deleteOrphansApi(false);
     alert(`Removidas: ${r.deleted_tracks}`);
     initManage();
 }
 
 async function deleteOrphansWithFiles() {
-    if (!confirm("Remover tracks órfãs e os arquivos de áudio?")) return;
+    const ok = await showConfirm({
+        title: "Remover tracks órfãs",
+        body: "Remover tracks órfãs do banco e os arquivos de áudio?",
+        confirmLabel: "Remover",
+        danger: true,
+    });
+    if (!ok) return;
     const r = await deleteOrphansApi(true);
     alert(`Removidas: ${r.deleted_tracks} tracks, ${r.deleted_files} arquivos`);
     initManage();

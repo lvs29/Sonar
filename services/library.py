@@ -45,9 +45,14 @@ def delete_orphan_tracks(delete_files: bool = False) -> dict:
         for track in orphans:
             if delete_files:
                 for path in [track.mp3_path, track.cover_path]:
-                    if path and os.path.exists(path):
-                        os.remove(path)
-                        files_deleted += 1
+                    if path:
+                        full_path = os.path.join(
+                            MUSIC_DIR if path.endswith((".mp3", ".flac", ".ogg", ".m4a")) else COVERS_DIR,
+                            path
+                        ) if not os.path.isabs(path) else path
+                        if os.path.exists(full_path):
+                            os.remove(full_path)
+                            files_deleted += 1
             session.delete(track)
             deleted += 1
 

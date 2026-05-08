@@ -635,7 +635,7 @@ def get_track_playlists(id):
         session.close()
 
 @library_bp.route("/track/<id>/playlists", methods=["POST"])
-def set_track_playlists(id):
+def set_track_playlists_route(id):
     data = request.get_json()
     playlist_ids = data.get("playlist_ids", [])
     try:
