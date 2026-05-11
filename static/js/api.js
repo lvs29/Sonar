@@ -113,7 +113,7 @@ async function fetchAllTracks() {
     return (await r.json()).map(sanitizeTrack);
 }
 
-async function deleteOrphanTrack(id, withFiles = false) {
+async function deleteTrack(id, withFiles = false) {
     const r = await fetch(`${API}/library/track/${id}?files=${withFiles}`, { method: "DELETE" });
     return r.json();
 }

@@ -41,20 +41,17 @@
     <!-- busca global — sempre visível na biblioteca e resultados -->
     <div id="search-bar">
         <div class="search-wrapper">
-            
-            <div class="search-mode-box">
-                <select class="search-mode-select" id="search-mode-select">
-                    <option value="local"><i class="fa-solid fa-folder-open"></i> Local</option>
-                    <option value="web"><i class="fa-solid fa-globe"></i> Web</option>
-                </select>
-            </div>
-
+            <i class="fa-solid fa-search search-icon"></i>
             <input
             id="search-input"
             autocomplete="off"
-            placeholder="Buscar músicas na biblioteca..."
+            placeholder="Buscar músicas..."
             type="text"
             />
+            <select class="search-mode-select" id="search-mode-select">
+                <option value="local">Local</option>
+                <option value="web">Web</option>
+            </select>
         </div>
     </div>
 
@@ -81,16 +78,18 @@
 
     <!-- view: playlist detail -->
     <div class="view" id="view-playlist">
-      <div class="playlist-header">
-          <img id="pl-cover" class="playlist-cover" src="" alt="">
-          <div style="flex:1;">
-              <div class="playlist-info-label">Playlist</div>
-              <div class="playlist-info-name" id="pl-name"></div>
-              <div id="pl-description" style="font-size:13px;color:var(--text-2);margin-bottom:4px;display:none;"></div>
-              <div class="playlist-info-meta" id="pl-meta"></div>
-              <div id="pl-actions" style="margin-top:12px;"></div>
-          </div>
-      </div>
+        <div class="playlist-header-container">
+            <div class="playlist-header">
+                <img id="pl-cover" class="playlist-cover" src="" alt="">
+                <div style="flex:1;">
+                    <div class="playlist-info-label">Playlist</div>
+                    <div class="playlist-info-name" id="pl-name"></div>
+                    <div id="pl-description" class="playlist-description"></div>
+                    <div class="playlist-info-meta" id="pl-meta"></div>
+                    <div id="pl-actions" style="margin-top:12px;"></div>
+                </div>
+            </div>
+        </div>
         <div class="track-list-header">
             <div>#</div><div></div><div>Título</div><div>Álbum</div><div>Plays</div><div style="text-align:right;">Dur.</div><div></div>
         </div>
@@ -231,7 +230,7 @@
 
   <div id="player-info">
     <div id="player-title">—</div>
-    <div id="player-artist"></div>
+    <div id="player-artist"><span id="player-artist-inner"></span></div>
   </div>
 
   <div id="player-controls">
@@ -283,6 +282,11 @@
             <button class="btn" id="confirm-ok"></button>
         </div>
     </div>
+</div>
+
+<!-- player hover card -->
+<div id="player-hover-card" style="display:none;position:fixed;z-index:1000;padding:16px;background:#1a1a1a;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+    <img id="hover-card-cover" src="" style="width:280px;height:280px;border-radius:8px;object-fit:cover;background:var(--bg-3);">
 </div>
 
 <!-- bottom nav — só aparece no mobile -->

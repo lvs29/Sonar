@@ -36,7 +36,12 @@ const Player = (() => {
         playerTitle.textContent     = decodedTitle;
         playerTitle.dataset.title   = decodedTitle;
         playerTitle.title           = decodedTitle;
-        playerArtist.textContent    = decodedArtist;
+
+        const artistInner = document.getElementById("player-artist-inner");
+        if (artistInner) {
+            artistInner.textContent = decodedArtist;
+        }
+
         playerCover.src             = audioUrl(track.id).replace("/audio", "/cover");
         playerCover.onerror         = () => { playerCover.src = ""; };
 
@@ -53,6 +58,26 @@ const Player = (() => {
         if (miniCover)  miniCover.src  = fullCover.src  = audioUrl(track.id).replace("/audio", "/cover");
         if (miniTitle)  miniTitle.textContent  = fullTitle.textContent  = decodedTitle;
         if (miniArtist) miniArtist.textContent = fullArtist.textContent = decodedArtist;
+
+        // detecta se o texto do artista é maior que o container para habilitar marquee
+        const artistContainer = document.getElementById("player-artist");
+
+        if (artistContainer && artistInner) {
+            artistContainer.classList.remove("marquee-enabled");
+
+            // Força o browser a recalcular o layout antes de medir
+            void artistContainer.offsetWidth;
+
+            const isOverflow = artistInner.scrollWidth > artistContainer.clientWidth;
+            if (isOverflow) {
+                const distance = artistInner.scrollWidth - artistContainer.clientWidth;
+                const speed = 20;
+                const duration = distance / speed;
+                artistContainer.style.setProperty("--marquee-duration", `${duration}s`);
+                artistContainer.style.setProperty("--marquee-distance", `${distance}px`);
+                artistContainer.classList.add("marquee-enabled");
+            }
+        }
 
         // Media Session API - metadados
         if ("mediaSession" in navigator) {
@@ -259,3 +284,40 @@ btnLoop.addEventListener("click", () => {
 
 // restaura estado
 _updateLoopUI(Queue.loopPlaylist);
+
+// ========================
+// player hover card
+// ========================
+
+const playerCover = document.getElementById("player-cover");
+const hoverCard = document.getElementById("player-hover-card");
+const hoverCardCover = document.getElementById("hover-card-cover");
+let hideTimeout = null;
+
+if (playerCover && hoverCard) {
+    playerCover.addEventListener("mouseenter", () => {
+        clearTimeout(hideTimeout);
+        const current = Queue.getCurrent();
+        if (current) {
+            hoverCardCover.src = audioUrl(current.id).replace("/audio", "/cover");
+            const rect = playerCover.getBoundingClientRect();
+            hoverCard.style.top = `${rect.top - 320}px`;
+            hoverCard.style.left = `${rect.left}px`;
+            hoverCard.style.display = "block";
+        }
+    });
+
+    playerCover.addEventListener("mouseleave", () => {
+        hideTimeout = setTimeout(() => {
+            hoverCard.style.display = "none";
+        }, 200);
+    });
+
+    hoverCard.addEventListener("mouseenter", () => {
+        clearTimeout(hideTimeout);
+    });
+
+    hoverCard.addEventListener("mouseleave", () => {
+        hoverCard.style.display = "none";
+    });
+}

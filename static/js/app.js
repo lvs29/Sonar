@@ -74,6 +74,11 @@ function showView(name) {
         n.classList.toggle("active", n.dataset.view === name);
     });
 
+    // limpa o background do header se não for playlist
+    if (name !== "playlist") {
+        document.documentElement.style.removeProperty("--playlist-cover");
+    }
+
     if (name === "downloads") initDownloads();
     if (name === "manage")    initManage();
 }
@@ -170,7 +175,6 @@ function getItemHeight() {
 
 async function openPlaylist(playlistId, name) {
     closeAllPopups();
-    document.getElementById("main").classList.remove("show-search");
     document.getElementById("search-input").value = "";
     currentPlaylistId = playlistId;
     localStorage.setItem("sonar_playlist_id",   playlistId);
@@ -218,18 +222,21 @@ async function openPlaylist(playlistId, name) {
  
     document.getElementById("pl-cover").src      = `/library/playlist/${playlistId}/cover`;
     document.getElementById("pl-cover").onerror  = () => {};
+
+    // define a capa como background do header
+    document.documentElement.style.setProperty("--playlist-cover", `url('/library/playlist/${playlistId}/cover')`);
  
     document.getElementById("pl-actions").innerHTML = `
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn" id="btn-edit-cover">
-                <i class="fa-solid fa-image"></i> Editar capa
+            <button class="btn" id="btn-edit">
+                <i class="fa-solid fa-image"></i> Editar
             </button>
             <button class="btn btn-danger-solid" id="btn-delete-playlist">
                 <i class="fa-solid fa-trash"></i> Remover playlist
             </button>
         </div>`;
 
-    document.getElementById("btn-edit-cover").addEventListener("click", () => {
+    document.getElementById("btn-edit").addEventListener("click", () => {
         openEditCoverModal(playlistId);
     });
  
@@ -484,6 +491,10 @@ function openTrackPopup(btn, track) {
             <i class="fa-solid fa-file-audio" style="width:16px;"></i> Mudar arquivo da faixa
             <i class="fa-solid fa-chevron-right" style="margin-left:auto;font-size:10px;"></i>
         </div>
+        <div style="border-top:1px solid var(--border);margin:4px 0;"></div>
+        <div class="ctx-item" id="ctx-delete" style="color:var(--danger);">
+            <i class="fa-solid fa-trash" style="width:16px;"></i> Remover do banco
+        </div>
     `;
 
     document.body.appendChild(popup);
@@ -655,6 +666,31 @@ function openTrackPopup(btn, track) {
             closeAllPopups();
         });
     });
+
+    // ========================
+    // remover do banco
+    // ========================
+    popup.querySelector("#ctx-delete").addEventListener("click", async () => {
+        const ok = await showConfirm({
+            title: "Remover música",
+            body: `Deseja remover "${decodeHtml(track.title)}" do banco de dados? (Música + arquivo)`
+        });
+        if (!ok) return;
+ 
+        await deleteTrack(track.id, true);
+        closeAllPopups();
+ 
+        // recarrega a view atual
+        if (currentPlaylistId) {
+            await openPlaylist(currentPlaylistId, document.getElementById("pl-name")?.textContent);
+        } else {
+            const searchInput = document.getElementById("search-input");
+            if (searchInput && searchInput.value.trim()) {
+                searchInput.dispatchEvent(new Event("input"));
+            }
+        }
+    });
+ 
 
     // fecha ao clicar fora
     setTimeout(() => {
@@ -1204,7 +1240,7 @@ async function deleteOrphan(id, withFiles) {
     });
     if (!ok) return;
 
-    const result = await deleteOrphanTrack(id, withFiles);
+    const result = await deleteTrack(id, withFiles);
     if (result.status === "ok") {
         document.getElementById(`orphan-row-${id}`)?.remove();
     } else {
@@ -1335,11 +1371,6 @@ async function restoreState() {
     const playlistName = localStorage.getItem("sonar_playlist_name");
     const savedTime    = parseInt(localStorage.getItem("sonar_time") || "0");
 
-    if (!playlistId) {
-        document.getElementById("main").classList.add("show-search");
-        return;
-    }
-
     await openPlaylist(playlistId, playlistName);
 
     const restored = Queue.restore();
@@ -1375,16 +1406,39 @@ async function restoreState() {
         document.getElementById("time-current").textContent = formatDuration(savedTime * 1000);
     }, { once: true });
 
-    document.getElementById("player-title").textContent  = track.title;
-    document.getElementById("player-artist").textContent = track.artist;
+    document.getElementById("player-title").textContent  = decodeHtml(track.title);
+    const artistInner = document.getElementById("player-artist-inner");
+    if (artistInner) {
+        artistInner.textContent = decodeHtml(track.artist);
+    }
     document.getElementById("player-cover").src          = coverUrl(track.id);
+
+    // detecta se o texto do artista é maior que o container para habilitar marquee
+    const artistContainer = document.getElementById("player-artist");
+
+    if (artistContainer && artistInner) {
+        artistContainer.classList.remove("marquee-enabled");
+
+        // Força o browser a recalcular o layout antes de medir
+        void artistContainer.offsetWidth;
+
+        const isOverflow = artistInner.scrollWidth > artistContainer.clientWidth;
+        if (isOverflow) {
+            const distance = artistInner.scrollWidth - artistContainer.clientWidth;
+            const speed = 20;
+            const duration = distance / speed;
+            artistContainer.style.setProperty("--marquee-duration", `${duration}s`);
+            artistContainer.style.setProperty("--marquee-distance", `${distance}px`);
+            artistContainer.classList.add("marquee-enabled");
+        }
+    }
 
     // Media Session API - atualiza metadados ao restaurar estado
     if ("mediaSession" in navigator) {
         const coverUrl = `${API}/media/track/${track.id}/cover`;
         navigator.mediaSession.metadata = new MediaMetadata({
-            title: track.title,
-            artist: track.artist,
+            title: decodeHtml(track.title),
+            artist: decodeHtml(track.artist),
             album: track.album || "",
             artwork: [{ src: coverUrl, sizes: "512x512", type: "image/jpeg" }]
         });
@@ -1399,8 +1453,8 @@ async function restoreState() {
     const fullArtist = document.getElementById("player-artist-full");
 
     if (miniCover)  miniCover.src  = fullCover.src  = coverUrl(track.id);
-    if (miniTitle)  miniTitle.textContent  = fullTitle.textContent  = track.title;
-    if (miniArtist) miniArtist.textContent = fullArtist.textContent = track.artist;
+    if (miniTitle)  miniTitle.textContent  = fullTitle.textContent  = decodeHtml(track.title);
+    if (miniArtist) miniArtist.textContent = fullArtist.textContent = decodeHtml(track.artist);
 
     setTimeout(highlightCurrentTrack, 300);
 }
@@ -1469,8 +1523,13 @@ function initSearch() {
         } else {
             input.placeholder = "Buscar músicas na biblioteca...";
         }
-        input.value = "";
-        showView("playlists");
+
+        // dispara pesquisa se houver conteúdo
+        const query = input.value.trim();
+        if (query) {
+            // dispara o evento de input para executar a pesquisa
+            input.dispatchEvent(new Event("input"));
+        }
     }
  
     document.getElementById("search-mode-select").addEventListener("change", (e) => {
@@ -1854,4 +1913,3 @@ document.addEventListener("DOMContentLoaded", () => {
         Player.seek((e.clientX - rect.left) / rect.width);
     });
 });
-
