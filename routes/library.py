@@ -5,6 +5,8 @@ from services.library import (
     delete_orphan_tracks,
     get_playlist_tracks_from_db,
     set_track_playlists,
+    find_orphan_files,
+    delete_orphan_files,
 )
 from services.downloader import enqueue_playlist, get_queue_status, set_youtube_url, add_youtube_track
 import json
@@ -54,6 +56,20 @@ def orphans():
 def delete_orphans():
     delete_files = request.args.get("files", "false").lower() == "true"
     result = delete_orphan_tracks(delete_files=delete_files)
+    return jsonify(result)
+
+
+@library_bp.route("/orphan-files")
+def orphan_files():
+    """Verifica arquivos órfãos no sistema de arquivos"""
+    result = find_orphan_files()
+    return jsonify(result)
+
+
+@library_bp.route("/orphan-files/", methods=["DELETE"])
+def delete_orphan_files_endpoint():
+    """Deleta arquivos órfãos do sistema de arquivos"""
+    result = delete_orphan_files()
     return jsonify(result)
 
 @library_bp.route("/download/<playlist_id>", methods=["POST"])
@@ -167,6 +183,7 @@ def retry_failed():
 @library_bp.route("/playlist/<playlist_id>/cover")
 def playlist_cover(playlist_id):
     from config import PLAYLIST_COVERS_DIR
+    from models import Cover
     import os
     session = Session()
     try:
@@ -174,12 +191,14 @@ def playlist_cover(playlist_id):
         if not pl:
             abort(404)
 
-        # cover local
-        if pl.cover_path:
-            full = os.path.join(PLAYLIST_COVERS_DIR, pl.cover_path)
-            if os.path.exists(full):
-                with open(full, "rb") as f:
-                    return Response(f.read(), mimetype="image/jpeg")
+        # cover via hash
+        if pl.cover_hash:
+            cover = session.get(Cover, pl.cover_hash)
+            if cover:
+                full = os.path.join(PLAYLIST_COVERS_DIR, cover.path)
+                if os.path.exists(full):
+                    with open(full, "rb") as f:
+                        return Response(f.read(), mimetype="image/jpeg")
 
         # placeholder SVG com iniciais
         initials = "".join(w[0].upper() for w in pl.name.split()[:2]) or "?"
@@ -194,8 +213,8 @@ def playlist_cover(playlist_id):
 
 @library_bp.route("/playlist/<playlist_id>/cover", methods=["POST"])
 def upload_playlist_cover(playlist_id):
-    from config import PLAYLIST_COVERS_DIR
-    import shutil, tempfile, os
+    from services.library import save_playlist_cover_deduplicated
+    import os
 
     session = Session()
     try:
@@ -216,22 +235,20 @@ def upload_playlist_cover(playlist_id):
                 if r.status_code != 200:
                     return jsonify({"error": "falha ao baixar imagem"}), 400
 
-                # salva localmente
-                cover_name = f"playlist_{playlist_id}.jpg"
-                cover_path = os.path.join(PLAYLIST_COVERS_DIR, cover_name)
-
                 # converte pra jpg se necessário
                 try:
                     from PIL import Image
                     import io
                     img = Image.open(io.BytesIO(r.content)).convert("RGB")
-                    img.save(cover_path, "JPEG", quality=90)
+                    import io as io2
+                    buffer = io2.BytesIO()
+                    img.save(buffer, format="JPEG", quality=90)
+                    image_data = buffer.getvalue()
                 except ImportError:
-                    # sem PIL, salva direto
-                    with open(cover_path, "wb") as f:
-                        f.write(r.content)
+                    # sem PIL, usa direto
+                    image_data = r.content
 
-                pl.cover_path = cover_name
+                pl.cover_hash = save_playlist_cover_deduplicated(image_data, ".jpg")
                 session.commit()
                 return jsonify({"status": "ok"})
             except Exception as e:
@@ -245,20 +262,18 @@ def upload_playlist_cover(playlist_id):
         if not file.filename.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
             return jsonify({"error": "formato não suportado"}), 400
 
-        cover_name = f"playlist_{playlist_id}.jpg"
-        cover_path = os.path.join(PLAYLIST_COVERS_DIR, cover_name)
-
         # converte pra jpg se necessário
         try:
             from PIL import Image
-            import io
             img = Image.open(file.stream).convert("RGB")
-            img.save(cover_path, "JPEG", quality=90)
+            import io
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=90)
+            image_data = buffer.getvalue()
         except ImportError:
-            # sem PIL, salva direto
-            file.save(cover_path)
+            image_data = file.read()
 
-        pl.cover_path = cover_name
+        pl.cover_hash = save_playlist_cover_deduplicated(image_data, ".jpg")
         session.commit()
         return jsonify({"status": "ok"})
 
@@ -307,6 +322,8 @@ def playlist_meta(playlist_id):
 
 @library_bp.route("/playlist/<playlist_id>", methods=["DELETE"])
 def delete_playlist(playlist_id):
+    from models import Cover
+    from config import PLAYLIST_COVERS_DIR
     session = Session()
     try:
         # remove os vínculos playlist_tracks
@@ -316,6 +333,25 @@ def delete_playlist(playlist_id):
         if not playlist:
             return jsonify({"error": "não encontrada"}), 404
         name = playlist.name
+
+        # Deleta cover se não for compartilhado
+        if playlist.cover_hash:
+            cover = session.get(Cover, playlist.cover_hash)
+            if cover:
+                # Verifica se outras playlists ou tracks usam este cover
+                other_playlists = session.query(Playlist).filter(
+                    Playlist.cover_hash == playlist.cover_hash,
+                    Playlist.id != playlist_id
+                ).count()
+                other_tracks = session.query(Track).filter(
+                    Track.cover_hash == playlist.cover_hash
+                ).count()
+                if other_playlists == 0 and other_tracks == 0:
+                    full = os.path.join(PLAYLIST_COVERS_DIR, cover.path)
+                    if os.path.exists(full):
+                        os.remove(full)
+                    session.delete(cover)
+
         session.delete(playlist)
         session.commit()
         return jsonify({"status": "ok", "name": name})
@@ -394,7 +430,7 @@ def update_track(id):
 
 @library_bp.route("/track/<id>/cover", methods=["POST"])
 def upload_track_cover(id):
-    from config import COVERS_DIR
+    from services.library import save_cover_deduplicated
     import os
     session = Session()
     try:
@@ -415,22 +451,20 @@ def upload_track_cover(id):
                 if r.status_code != 200:
                     return jsonify({"error": "falha ao baixar imagem"}), 400
 
-                # salva localmente
-                cover_name = f"track_{id}.jpg"
-                cover_path = os.path.join(COVERS_DIR, cover_name)
-
                 # converte pra jpg se necessário
                 try:
                     from PIL import Image
                     import io
                     img = Image.open(io.BytesIO(r.content)).convert("RGB")
-                    img.save(cover_path, "JPEG", quality=90)
+                    import io as io2
+                    buffer = io2.BytesIO()
+                    img.save(buffer, format="JPEG", quality=90)
+                    image_data = buffer.getvalue()
                 except ImportError:
-                    # sem PIL, salva direto
-                    with open(cover_path, "wb") as f:
-                        f.write(r.content)
+                    # sem PIL, usa direto
+                    image_data = r.content
 
-                track.cover_path = cover_name
+                track.cover_hash = save_cover_deduplicated(image_data, ".jpg")
                 session.commit()
                 return jsonify({"status": "ok"})
             except Exception as e:
@@ -441,17 +475,19 @@ def upload_track_cover(id):
             return jsonify({"error": "arquivo obrigatório"}), 400
 
         file = request.files["file"]
-        cover_name = f"{id}.jpg"
-        cover_path = os.path.join(COVERS_DIR, cover_name)
 
+        # converte pra jpg se necessário
         try:
             from PIL import Image
             img = Image.open(file.stream).convert("RGB")
-            img.save(cover_path, "JPEG", quality=90)
+            import io
+            buffer = io.BytesIO()
+            img.save(buffer, format="JPEG", quality=90)
+            image_data = buffer.getvalue()
         except ImportError:
-            file.save(cover_path)
+            image_data = file.read()
 
-        track.cover_path = cover_name
+        track.cover_hash = save_cover_deduplicated(image_data, ".jpg")
         session.commit()
         return jsonify({"status": "ok"})
 
@@ -464,6 +500,8 @@ def upload_track_cover(id):
 @library_bp.route("/track/<id>", methods=["DELETE"])
 def delete_track(id):
     with_files = request.args.get("files", "false").lower() == "true"
+    from models import Cover
+    from config import MUSIC_DIR, COVERS_DIR
     session = Session()
     try:
         track = session.get(Track, id)
@@ -471,15 +509,30 @@ def delete_track(id):
             return jsonify({"error": "não encontrada"}), 404
 
         if with_files:
-            for path in [track.mp3_path, track.cover_path]:
-                if path:
-                    full = os.path.join(
-                        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                        "media", "music" if path.endswith(".mp3") else "covers",
-                        path
-                    ) if not os.path.isabs(path) else path
-                    if os.path.exists(full):
-                        os.remove(full)
+            # Deleta arquivo MP3
+            if track.mp3_path:
+                full = os.path.join(MUSIC_DIR, track.mp3_path)
+                if os.path.exists(full):
+                    os.remove(full)
+
+            # Deleta cover se não for compartilhado
+            if track.cover_hash:
+                cover = session.get(Cover, track.cover_hash)
+                if cover:
+                    # Verifica se outras tracks usam este cover
+                    other_tracks = session.query(Track).filter(
+                        Track.cover_hash == track.cover_hash,
+                        Track.id != track.id
+                    ).count()
+                    # Verifica se playlists usam este cover
+                    other_playlists = session.query(Playlist).filter(
+                        Playlist.cover_hash == track.cover_hash
+                    ).count()
+                    if other_tracks == 0 and other_playlists == 0:
+                        full = os.path.join(COVERS_DIR, cover.path)
+                        if os.path.exists(full):
+                            os.remove(full)
+                        session.delete(cover)
 
         session.delete(track)
         session.commit()
@@ -704,10 +757,15 @@ def replace_track_file(id):
 
         file.save(dst_path)
 
-        # tenta extrair capa
+        # tenta extrair capa com deduplicação
         cover = _extract_cover(dst_path, id, COVERS_DIR)
         if cover:
-            track.cover_path = cover
+            from services.library import save_cover_deduplicated
+            full_cover_path = os.path.join(COVERS_DIR, cover)
+            if os.path.exists(full_cover_path):
+                with open(full_cover_path, "rb") as f:
+                    track.cover_hash = save_cover_deduplicated(f.read(), ".jpg")
+                os.remove(full_cover_path)
 
         track.mp3_path   = dst_name
         track.downloaded = True

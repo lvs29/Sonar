@@ -16,6 +16,14 @@ class Base(DeclarativeBase):
     pass
 
 
+class Cover(Base):
+    __tablename__ = "covers"
+    hash     = Column(String, primary_key=True)
+    path     = Column(String, nullable=False)
+    size     = Column(Integer)
+    added_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Track(Base):
     __tablename__ = "tracks"
     id             = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -25,7 +33,7 @@ class Track(Base):
     album          = Column(String)
     duration_ms    = Column(Integer)
     mp3_path       = Column(String)
-    cover_path     = Column(String)
+    cover_hash     = Column(String, ForeignKey("covers.hash"))
     downloaded     = Column(Boolean, default=False)
     added_at       = Column(DateTime, default=datetime.utcnow)
     youtube_id     = Column(String)
@@ -34,13 +42,17 @@ class Track(Base):
     play_count     = Column(Integer, default=0)
     complete_count = Column(Integer, default=0)
 
+    cover = relationship("Cover", backref="tracks")
+
 
 class Playlist(Base):
     __tablename__ = "playlists"
     id          = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name        = Column(String)
-    cover_path  = Column(String)
+    cover_hash  = Column(String, ForeignKey("covers.hash"))
     description = Column(String)
+
+    cover = relationship("Cover", backref="playlists")
 
 
 class PlaylistTrack(Base):

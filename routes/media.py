@@ -1,7 +1,7 @@
 import os
 from config import BASE_DIR, COVERS_DIR, MUSIC_DIR
 from flask import Blueprint, send_file, abort
-from models import Session, Track
+from models import Session, Track, Cover
 
 media_bp = Blueprint("media", __name__)
 
@@ -24,11 +24,14 @@ def serve_cover(id):
     session = Session()
     try:
         track = session.get(Track, id)
-        if not track or not track.cover_path:
+        if not track or not track.cover_hash:
             abort(404)
-        full_path = os.path.join(COVERS_DIR, track.cover_path)
+        cover = session.get(Cover, track.cover_hash)
+        if not cover:
+            abort(404)
+        full_path = os.path.join(COVERS_DIR, cover.path)
         if not os.path.exists(full_path):
             abort(404)
-        return send_file(full_path, mimetype="image/jpeg")
+        return send_file(full_path, mimetype="image/jpeg", conditional=True)
     finally:
         session.close()

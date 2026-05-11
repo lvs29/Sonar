@@ -10,6 +10,7 @@ from sqlalchemy import func
 from config import get as cfg_get
 from models import Session, Track, DownloadJob
 from config import MUSIC_DIR, COVERS_DIR
+from .library import save_cover_deduplicated
 
 _worker_started = False
 _lock = threading.Lock()
@@ -270,6 +271,17 @@ def confirm_local_track(data: dict, playlist_ids: list) -> dict:
 
     session = Session()
     try:
+        # Processa cover se existir
+        cover_hash = None
+        cover_path = data.get("cover_path")
+        if cover_path:
+            full_cover_path = os.path.join(COVERS_DIR, cover_path)
+            if os.path.exists(full_cover_path):
+                with open(full_cover_path, "rb") as f:
+                    cover_hash = save_cover_deduplicated(f.read(), ".jpg")
+                # Remove arquivo temporário
+                os.remove(full_cover_path)
+
         track = Track(
             id          = data["tmp_id"],
             title       = data["title"],
@@ -277,7 +289,7 @@ def confirm_local_track(data: dict, playlist_ids: list) -> dict:
             album       = data.get("album", ""),
             duration_ms = data.get("duration_ms", 0),
             mp3_path    = data["tmp_path"],
-            cover_path  = data.get("cover_path"),
+            cover_hash  = cover_hash,
             downloaded  = True,
         )
         session.add(track)
@@ -425,14 +437,16 @@ def _download_track(job_id: int):
         track = session.query(Track).filter_by(id=job.track_id).one()
 
         mp3_path   = f"{track.id}.mp3"
-        cover_path = f"{track.id}.jpg"
         mp3_full   = os.path.join(MUSIC_DIR,  mp3_path)
-        cover_full = os.path.join(COVERS_DIR, cover_path)
 
         # usa url salva se existir, senão busca
         if track.youtube_url:
             print(f"[worker] usando url salva: {track.youtube_url}", flush=True)
-            match = {"id": track.youtube_id, "url": track.youtube_url}
+            match = {
+                "id": track.youtube_id,
+                "url": track.youtube_url,
+                "thumbnail": f"https://i.ytimg.com/vi/{track.youtube_id}/mqdefault.jpg"
+            }
         else:
             print(f"[worker] buscando no youtube...", flush=True)
             match = _find_best_match(track)
@@ -463,20 +477,19 @@ def _download_track(job_id: int):
         if not os.path.exists(mp3_full):
             raise Exception("mp3 não foi criado")
 
-        # baixa capa do thumbnail
+        # baixa capa do thumbnail com deduplicação
+        cover_hash = None
         if match.get("thumbnail"):
             try:
                 import requests as req
                 img = req.get(match["thumbnail"], timeout=10)
                 if img.status_code == 200:
-                    with open(cover_full, "wb") as f:
-                        f.write(img.content)
-                    track.cover_path = cover_path
+                    cover_hash = save_cover_deduplicated(img.content, ".jpg")
             except Exception:
                 pass
 
         track.mp3_path    = mp3_path
-        track.cover_path  = cover_path if os.path.exists(cover_full) else None
+        track.cover_hash  = cover_hash
         track.downloaded  = True
         track.youtube_id  = match["id"]
         track.youtube_url = match["url"]
