@@ -29,3 +29,4 @@ def get(key: str):
 BASE_DIR   = os.path.dirname(__file__)
 MUSIC_DIR  = os.path.join(BASE_DIR, "media", "music")
 COVERS_DIR = os.path.join(BASE_DIR, "media", "covers")
+PLAYLIST_COVERS_DIR = os.path.join(BASE_DIR, "media", "playlist_covers")

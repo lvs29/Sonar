@@ -29,7 +29,6 @@ def create_playlist():
             id          = str(__import__("uuid").uuid4()),
             name        = name,
             description = data.get("description", ""),
-            last_synced = datetime.now(timezone.utc),
         )
         session.add(playlist)
         session.commit()
@@ -130,7 +129,6 @@ def list_playlists():
             "id":   p.id,
             "name":         p.name,
             "description":  p.description or "",
-            "last_synced":  p.last_synced.isoformat() if p.last_synced else None,
         } for p in playlists])
     finally:
         session.close()
@@ -168,7 +166,7 @@ def retry_failed():
 
 @library_bp.route("/playlist/<playlist_id>/cover")
 def playlist_cover(playlist_id):
-    from config import COVERS_DIR
+    from config import PLAYLIST_COVERS_DIR
     import os
     session = Session()
     try:
@@ -176,22 +174,12 @@ def playlist_cover(playlist_id):
         if not pl:
             abort(404)
 
-        # cover local tem prioridade
+        # cover local
         if pl.cover_path:
-            full = os.path.join(COVERS_DIR, pl.cover_path)
+            full = os.path.join(PLAYLIST_COVERS_DIR, pl.cover_path)
             if os.path.exists(full):
                 with open(full, "rb") as f:
                     return Response(f.read(), mimetype="image/jpeg")
-
-        # cover via URL externa
-        if pl.cover_url:
-            try:
-                import requests as req
-                r = req.get(pl.cover_url, timeout=5)
-                if r.status_code == 200:
-                    return Response(r.content, mimetype="image/jpeg")
-            except Exception:
-                pass
 
         # placeholder SVG com iniciais
         initials = "".join(w[0].upper() for w in pl.name.split()[:2]) or "?"
@@ -206,7 +194,7 @@ def playlist_cover(playlist_id):
 
 @library_bp.route("/playlist/<playlist_id>/cover", methods=["POST"])
 def upload_playlist_cover(playlist_id):
-    from config import COVERS_DIR
+    from config import PLAYLIST_COVERS_DIR
     import shutil, tempfile, os
 
     session = Session()
@@ -215,15 +203,39 @@ def upload_playlist_cover(playlist_id):
         if not pl:
             return jsonify({"error": "não encontrada"}), 404
 
-        # via URL
+        # via URL - baixa imagem localmente
         if request.is_json:
             url = request.get_json().get("cover_url", "").strip()
             if not url:
                 return jsonify({"error": "url obrigatória"}), 400
-            pl.cover_url  = url
-            pl.cover_path = None
-            session.commit()
-            return jsonify({"status": "ok"})
+
+            # baixa a imagem
+            try:
+                import requests as req
+                r = req.get(url, timeout=10)
+                if r.status_code != 200:
+                    return jsonify({"error": "falha ao baixar imagem"}), 400
+
+                # salva localmente
+                cover_name = f"playlist_{playlist_id}.jpg"
+                cover_path = os.path.join(PLAYLIST_COVERS_DIR, cover_name)
+
+                # converte pra jpg se necessário
+                try:
+                    from PIL import Image
+                    import io
+                    img = Image.open(io.BytesIO(r.content)).convert("RGB")
+                    img.save(cover_path, "JPEG", quality=90)
+                except ImportError:
+                    # sem PIL, salva direto
+                    with open(cover_path, "wb") as f:
+                        f.write(r.content)
+
+                pl.cover_path = cover_name
+                session.commit()
+                return jsonify({"status": "ok"})
+            except Exception as e:
+                return jsonify({"error": f"falha ao baixar imagem: {str(e)}"}), 400
 
         # via upload
         if "file" not in request.files:
@@ -234,7 +246,7 @@ def upload_playlist_cover(playlist_id):
             return jsonify({"error": "formato não suportado"}), 400
 
         cover_name = f"playlist_{playlist_id}.jpg"
-        cover_path = os.path.join(COVERS_DIR, cover_name)
+        cover_path = os.path.join(PLAYLIST_COVERS_DIR, cover_name)
 
         # converte pra jpg se necessário
         try:
@@ -247,7 +259,6 @@ def upload_playlist_cover(playlist_id):
             file.save(cover_path)
 
         pl.cover_path = cover_name
-        pl.cover_url  = None
         session.commit()
         return jsonify({"status": "ok"})
 
@@ -290,7 +301,6 @@ def playlist_meta(playlist_id):
             "id":  pl.id,
             "name":        pl.name,
             "description": pl.description or "",
-            "last_synced": pl.last_synced.isoformat() if pl.last_synced else None,
         })
     finally:
         session.close()
@@ -392,15 +402,39 @@ def upload_track_cover(id):
         if not track:
             return jsonify({"error": "não encontrada"}), 404
 
-        # via URL
+        # via URL - baixa imagem localmente
         if request.is_json:
             url = request.get_json().get("cover_url", "").strip()
             if not url:
                 return jsonify({"error": "url obrigatória"}), 400
-            track.cover_url  = url
-            track.cover_path = None
-            session.commit()
-            return jsonify({"status": "ok"})
+
+            # baixa a imagem
+            try:
+                import requests as req
+                r = req.get(url, timeout=10)
+                if r.status_code != 200:
+                    return jsonify({"error": "falha ao baixar imagem"}), 400
+
+                # salva localmente
+                cover_name = f"track_{id}.jpg"
+                cover_path = os.path.join(COVERS_DIR, cover_name)
+
+                # converte pra jpg se necessário
+                try:
+                    from PIL import Image
+                    import io
+                    img = Image.open(io.BytesIO(r.content)).convert("RGB")
+                    img.save(cover_path, "JPEG", quality=90)
+                except ImportError:
+                    # sem PIL, salva direto
+                    with open(cover_path, "wb") as f:
+                        f.write(r.content)
+
+                track.cover_path = cover_name
+                session.commit()
+                return jsonify({"status": "ok"})
+            except Exception as e:
+                return jsonify({"error": f"falha ao baixar imagem: {str(e)}"}), 400
 
         # via upload
         if "file" not in request.files:
@@ -418,7 +452,6 @@ def upload_track_cover(id):
             file.save(cover_path)
 
         track.cover_path = cover_name
-        track.cover_url  = None
         session.commit()
         return jsonify({"status": "ok"})
 

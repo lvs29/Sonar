@@ -142,7 +142,6 @@ def add_youtube_track(youtube_url: str, playlist_ids: list, meta: dict) -> dict:
                 album       = meta.get("album", ""),
                 duration_ms = meta.get("duration_ms", 0),
                 downloaded  = False,
-                cover_url   = f"https://i.ytimg.com/vi/{yt_id}/mqdefault.jpg" if yt_id else None,
             )
             session.add(track)
             session.flush()  # garante que o id está disponível antes do commit
@@ -464,31 +463,11 @@ def _download_track(job_id: int):
         if not os.path.exists(mp3_full):
             raise Exception("mp3 não foi criado")
 
-        # baixa capa do spotify
-        if track.cover_url:
-            try:
-                import requests as req
-                img = req.get(track.cover_url, timeout=10)
-                if img.status_code == 200:
-                    with open(cover_full, "wb") as f:
-                        f.write(img.content)
-            except Exception:
-                pass
-
-        if not track.cover_url and match.get("thumbnail"):
+        # baixa capa do thumbnail
+        if match.get("thumbnail"):
             try:
                 import requests as req
                 img = req.get(match["thumbnail"], timeout=10)
-                if img.status_code == 200:
-                    with open(cover_full, "wb") as f:
-                        f.write(img.content)
-                    track.cover_path = cover_path
-            except Exception:
-                pass
-        elif track.cover_url:
-            try:
-                import requests as req
-                img = req.get(track.cover_url, timeout=10)
                 if img.status_code == 200:
                     with open(cover_full, "wb") as f:
                         f.write(img.content)

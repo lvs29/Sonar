@@ -2,6 +2,7 @@
 import os
 from datetime import datetime, timezone
 from models import Session, Track, Playlist, PlaylistTrack
+from config import PLAYLIST_COVERS_DIR
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MUSIC_DIR = os.path.join(BASE_DIR, "media", "music")
@@ -9,6 +10,7 @@ COVERS_DIR = os.path.join(BASE_DIR, "media", "covers")
 
 os.makedirs(MUSIC_DIR, exist_ok=True)
 os.makedirs(COVERS_DIR, exist_ok=True)
+os.makedirs(PLAYLIST_COVERS_DIR, exist_ok=True)
 
 def get_orphan_tracks() -> list:
     session = Session()

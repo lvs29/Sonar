@@ -128,7 +128,6 @@ function renderHomepage(playlists) {
             <div>
                 <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Playlist</div>
                 <div style="font-size:24px;font-weight:700;color:var(--text);margin-bottom:6px;">${featured.name}</div>
-                <div style="font-size:12px;color:var(--text-3);">Última sync: ${formatDate(featured.last_synced)}</div>
                 <button class="btn btn-accent" style="margin-top:12px;"
                         onclick="event.stopPropagation();openPlaylist('${featured.id}','${featured.name.replace(/'/g, "\\'")}')">Abrir</button>
             </div>
@@ -145,18 +144,12 @@ function renderHomepage(playlists) {
                  style="width:44px;height:44px;border-radius:6px;object-fit:cover;background:var(--bg-3);flex-shrink:0;">
             <div>
                 <div style="font-size:13px;font-weight:500;color:var(--text);">${pl.name}</div>
-                <div style="font-size:11px;color:var(--text-3);">Sync: ${formatDate(pl.last_synced)}</div>
             </div>`;
         el.addEventListener("mouseover", () => el.style.background = "var(--bg-hover)");
         el.addEventListener("mouseout",  () => el.style.background = "var(--bg-2)");
         el.addEventListener("click", () => openPlaylist(pl.id, pl.name));
         homeList.appendChild(el);
     });
-}
-
-function formatDate(iso) {
-    if (!iso) return "nunca";
-    return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
 }
 
 // ========================

@@ -26,7 +26,6 @@ class Track(Base):
     duration_ms    = Column(Integer)
     mp3_path       = Column(String)
     cover_path     = Column(String)
-    cover_url      = Column(String)
     downloaded     = Column(Boolean, default=False)
     added_at       = Column(DateTime, default=datetime.utcnow)
     youtube_id     = Column(String)
@@ -40,8 +39,6 @@ class Playlist(Base):
     __tablename__ = "playlists"
     id          = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     name        = Column(String)
-    last_synced = Column(DateTime)
-    cover_url   = Column(String)
     cover_path  = Column(String)
     description = Column(String)
 
