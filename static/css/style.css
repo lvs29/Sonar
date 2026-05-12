@@ -1348,6 +1348,24 @@ body {
     white-space: nowrap;
 }
 
+/* Playlist Edit Mode */
+.edit-input:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.edit-track-list {
+    min-height: 100px;
+}
+
+.edit-track-item {
+    cursor: grab;
+}
+
+.edit-track-item:active {
+    cursor: grabbing;
+}
+
 .ctx-item:hover {
     background: var(--bg-hover);
     color: var(--text);

@@ -273,9 +273,22 @@ def set_track_playlists(track_id: str, playlist_ids: list) -> dict:
     from sqlalchemy import func
     session = Session()
     try:
-        session.query(PlaylistTrack).filter_by(track_id=track_id).delete()
+        # Busca playlists onde a track já está
+        existing_playlists = {pt.playlist_id for pt in session.query(PlaylistTrack.playlist_id)
+                             .filter_by(track_id=track_id).all()}
+        target_playlists = set(playlist_ids)
 
-        for pl_id in playlist_ids:
+        # Remove playlists que não estão na lista alvo
+        to_remove = existing_playlists - target_playlists
+        for pl_id in to_remove:
+            session.query(PlaylistTrack).filter_by(
+                track_id=track_id,
+                playlist_id=pl_id
+            ).delete()
+
+        # Adiciona apenas playlists novas
+        to_add = target_playlists - existing_playlists
+        for pl_id in to_add:
             pl = session.get(Playlist, pl_id)
             if not pl:
                 continue

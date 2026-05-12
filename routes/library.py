@@ -320,6 +320,59 @@ def playlist_meta(playlist_id):
     finally:
         session.close()
 
+
+@library_bp.route("/playlist/<playlist_id>/meta", methods=["PUT"])
+def update_playlist_meta(playlist_id):
+    data = request.get_json()
+    name = data.get("name")
+    description = data.get("description")
+    session = Session()
+    try:
+        pl = session.get(Playlist, playlist_id)
+        if not pl:
+            return jsonify({"error": "não encontrada"}), 404
+        if name is not None:
+            pl.name = name
+        if description is not None:
+            pl.description = description
+        session.commit()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
+
+@library_bp.route("/playlist/<playlist_id>/reorder", methods=["POST"])
+def reorder_playlist_tracks(playlist_id):
+    data = request.get_json()
+    track_ids = data.get("track_ids", [])
+
+    if not track_ids:
+        return jsonify({"error": "track_ids não pode estar vazio"}), 400
+
+    session = Session()
+    try:
+        # Deleta todas as associações existentes
+        session.query(PlaylistTrack).filter_by(playlist_id=playlist_id).delete()
+
+        # Recria com as novas posições
+        for idx, track_id in enumerate(track_ids):
+            session.add(PlaylistTrack(
+                playlist_id=playlist_id,
+                track_id=track_id,
+                position=idx + 1
+            ))
+
+        session.commit()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()
+
 @library_bp.route("/playlist/<playlist_id>", methods=["DELETE"])
 def delete_playlist(playlist_id):
     from models import Cover

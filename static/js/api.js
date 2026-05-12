@@ -263,3 +263,21 @@ async function replaceTrackFile(trackId, file) {
     });
     return r.json();
 }
+
+async function updatePlaylistMeta(playlistId, name, description) {
+    const r = await fetch(`${API}/library/playlist/${playlistId}/meta`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description }),
+    });
+    return r.json();
+}
+
+async function reorderPlaylistTracks(playlistId, trackIds) {
+    const r = await fetch(`${API}/library/playlist/${playlistId}/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ track_ids: trackIds }),
+    });
+    return r.json();
+}

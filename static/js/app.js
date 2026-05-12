@@ -230,7 +230,7 @@ async function openPlaylist(playlistId, name) {
         </div>`;
 
     document.getElementById("btn-edit").addEventListener("click", () => {
-        openEditCoverModal(playlistId);
+        openPlaylistEditMode(playlistId, meta, tracks);
     });
  
     document.getElementById("btn-delete-playlist").addEventListener("click", async () => {
@@ -265,8 +265,8 @@ function renderTrackList(allTracks, downloadedTracks, playlistId) {
 
     function renderVisible() {
         // se a playlist mudou este listener é obsoleto
-        if (currentPlaylistId !== thisPlaylistId) {
-            main.removeEventListener("scroll", renderVisible);
+        if (currentPlaylistId !== thisPlaylistId || playlistEditMode.active) {
+            main.removeEventListener("scroll", _scrollHandler);
             _scrollHandler = null;
             return;
         }
@@ -426,6 +426,630 @@ function openEditCoverModal(playlistId) {
     });
 }
 
+let playlistEditMode = {
+    active: false,
+    playlistId: null,
+    originalMeta: null,
+    originalTracks: [],
+    mainTracks: [],
+    basketTracks: [],
+    selectedCoverFile: null,
+    basketExpanded: false
+};
+
+function openPlaylistEditMode(playlistId, meta, tracks) {
+    playlistEditMode.active = true;
+    playlistEditMode.playlistId = playlistId;
+    playlistEditMode.originalMeta = {...meta};
+    playlistEditMode.originalTracks = [...tracks];
+    playlistEditMode.mainTracks = [...tracks];
+    playlistEditMode.basketTracks = [];
+    playlistEditMode.selectedCoverFile = null;
+    playlistEditMode.basketExpanded = false;
+
+    // Transforma header em modo de edição
+    const header = document.querySelector(".playlist-header");
+    header.innerHTML = `
+        <img id="pl-cover-edit" class="playlist-cover" src="/library/playlist/${playlistId}/cover" alt="" style="cursor:pointer;">
+        <div style="flex:1;">
+            <div class="playlist-info-label">Playlist</div>
+            <input id="pl-name-edit" class="edit-input" value="${meta.name}" style="font-size:24px;font-weight:700;background:transparent;border:none;color:var(--text-1);width:100%;margin-bottom:8px;">
+            <input id="pl-desc-edit" class="edit-input" value="${meta.description || ''}" placeholder="Descrição" style="font-size:14px;background:transparent;border:1px solid var(--border);color:var(--text-2);width:100%;padding:8px;border-radius:4px;">
+            <div id="pl-actions-edit" style="margin-top:12px;"></div>
+        </div>`;
+
+    // Upload de capa no modo de edição
+    header.querySelector("#pl-cover-edit").addEventListener("click", () => {
+        openEditCoverModal(playlistId, (newCoverUrl) => {
+            if (newCoverUrl) {
+                header.querySelector("#pl-cover-edit").src = newCoverUrl;
+            }
+        });
+    });
+
+    // Botões de ação
+    document.getElementById("pl-actions-edit").innerHTML = `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button class="btn btn-accent" id="btn-save-playlist">
+                <i class="fa-solid fa-check"></i> Salvar
+            </button>
+            <button class="btn" id="btn-cancel-edit">
+                <i class="fa-solid fa-xmark"></i> Cancelar
+            </button>
+            <button class="btn btn-danger-solid" id="btn-delete-playlist-edit">
+                <i class="fa-solid fa-trash"></i> Remover playlist
+            </button>
+            <div style="width:1px;height:24px;background:var(--border);margin:0 8px;"></div>
+            <button class="btn" id="btn-toggle-basket" style="padding:4px 8px;font-size:12px;">
+                <i class="fa-solid fa-chevron-left"></i> Cesta
+            </button>
+        </div>`;
+
+    // Substitui track list por duas listas
+    const trackListContainer = document.getElementById("track-list");
+    const trackListHeader = document.querySelector(".track-list-header");
+    if (trackListHeader) {
+        trackListHeader.style.display = "none";
+    }
+    trackListContainer.innerHTML = `
+        <div style="display:flex;gap:16px;padding:8px;">
+            <div id="edit-main-container" style="flex:1;display:flex;flex-direction:column;width:100%;overflow:hidden;transition:width 0.2s ease;">
+                <div style="padding:12px;background:var(--bg-2);border-radius:8px;margin-bottom:8px;font-size:13px;font-weight:600;flex-shrink:0;">
+                    <i class="fa-solid fa-list"></i> Principal
+                </div>
+                <div id="edit-main-list" class="edit-track-list" style="flex:1;overflow-y:auto;background:var(--bg-1);border-radius:8px;padding:8px;"></div>
+            </div>
+            <div id="edit-basket-container" style="flex:0;display:flex;flex-direction:column;width:0;overflow:hidden;transition:width 0.2s ease,opacity 0.2s ease,transform 0.2s ease;opacity:0;transform:translateX(100%);">
+                <div style="padding:12px;background:var(--bg-2);border-radius:8px;margin-bottom:8px;font-size:13px;font-weight:600;flex-shrink:0;">
+                    <i class="fa-solid fa-basket-shopping"></i> Cesta
+                </div>
+                <div id="edit-basket-list" class="edit-track-list" style="flex:1;overflow-y:auto;background:var(--bg-1);border-radius:8px;padding:8px;"></div>
+            </div>
+        </div>`;
+    trackListContainer.style.height = "auto";
+
+    // Renderiza tracks nas listas
+    renderEditTrackLists();
+
+    // Toggle da cesta
+    document.getElementById("btn-toggle-basket").addEventListener("click", toggleBasket);
+
+    // Event listeners
+    document.getElementById("btn-cancel-edit").addEventListener("click", () => {
+        const id   = playlistEditMode.playlistId;
+        const name = playlistEditMode.originalMeta.name;
+
+        restorePlaylistUI()
+
+        // limpa estado
+        playlistEditMode.active          = false;
+        playlistEditMode.playlistId      = null;
+        playlistEditMode.originalMeta    = null;
+        playlistEditMode.originalTracks  = [];
+        playlistEditMode.mainTracks      = [];
+        playlistEditMode.basketTracks    = [];
+        playlistEditMode.selectedCoverFile = null;
+        playlistEditMode.basketExpanded  = false;
+
+        openPlaylist(id, name);
+    });
+    document.getElementById("btn-delete-playlist-edit").addEventListener("click", () => {
+        document.querySelector("#pl-actions button:nth-child(2)").click();
+    });
+    document.getElementById("btn-save-playlist").addEventListener("click", savePlaylistEdit);
+}
+
+function restorePlaylistUI() {
+    if (!playlistEditMode.active || !playlistEditMode.originalMeta || !playlistEditMode.playlistId) {
+        // Se não está no modo de edição ou estado inválido, recarrega a playlist
+        openPlaylist(playlistEditMode.playlistId, playlistEditMode.originalMeta.name);
+        console.log("Playlist restaurada");
+        return;
+    }
+
+    const meta = playlistEditMode.originalMeta;
+    const playlistId = playlistEditMode.playlistId;
+
+    // Restaura o header
+    const header = document.querySelector(".playlist-header");
+    header.innerHTML = `
+        <img id="pl-cover" class="playlist-cover" src="/library/playlist/${playlistId}/cover" alt="">
+        <div style="flex:1;">
+            <div class="playlist-info-label">Playlist</div>
+            <div class="playlist-info-name" id="pl-name">${meta.name}</div>
+            <div id="pl-description" class="playlist-description">${meta.description || ''}</div>
+            <div class="playlist-info-meta" id="pl-meta"></div>
+            <div id="pl-actions" style="margin-top:12px;"></div>
+        </div>`;
+
+    // Configura a descrição
+    const descEl = document.getElementById("pl-description");
+    if (descEl) {
+        descEl.textContent = meta.description || "";
+        descEl.style.display = meta.description ? "block" : "none";
+    }
+
+    // Configura o meta
+    const metaEl = document.getElementById("pl-meta");
+    if (metaEl) {
+        const tracks = playlistEditMode.originalTracks;
+        const downloadedTracks = tracks.filter(t => t.downloaded);
+        metaEl.textContent = `${tracks.length} músicas · ${downloadedTracks.length} disponíveis`;
+    }
+
+    // Configura a capa como background do header
+    document.documentElement.style.setProperty("--playlist-cover", `url('/library/playlist/${playlistId}/cover')`);
+
+    // Restaura os botões de ação
+    document.getElementById("pl-actions").innerHTML = `
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" id="btn-edit">
+                <i class="fa-solid fa-image"></i> Editar
+            </button>
+            <button class="btn btn-danger-solid" id="btn-delete-playlist">
+                <i class="fa-solid fa-trash"></i> Remover playlist
+            </button>
+        </div>`;
+
+    document.getElementById("btn-edit").addEventListener("click", () => {
+        const sidebarItem = document.querySelector(`.sidebar-playlist[data-playlist-id="${playlistId}"]`);
+        const playlistName = sidebarItem?.querySelector(".sidebar-playlist-name").textContent || meta.name;
+        openPlaylist(playlistId, playlistName);
+    });
+
+    document.getElementById("btn-delete-playlist").addEventListener("click", async () => {
+        const ok = await showConfirm({
+            title:         "Remover playlist",
+            body:          `Tem certeza que quer remover <strong>${meta.name}</strong> da biblioteca?<br><br>Os arquivos de áudio não serão apagados.`,
+            confirmLabel:  "Remover",
+            danger:        true,
+        });
+        if (!ok) return;
+        const result = await deletePlaylist(playlistId);
+        if (result.status === "ok") {
+            await loadSidebar();
+            showView("playlists");
+        } else {
+            alert("Erro: " + result.error);
+        }
+    });
+
+    // Restaura a track list
+    const trackListContainer = document.getElementById("track-list");
+    trackListContainer.innerHTML = "";
+    trackListContainer.style.position = "";
+    trackListContainer.style.height = "";
+
+    // Restaura o header da track list
+    const trackListHeader = document.querySelector(".track-list-header");
+    if (trackListHeader) {
+        trackListHeader.style.display = "";
+    }
+
+    // Renderiza a track list original
+    renderTrackList(playlistEditMode.originalTracks, playlistEditMode.originalTracks.filter(t => t.downloaded), playlistId);
+}
+
+function toggleBasket() {
+    playlistEditMode.basketExpanded = !playlistEditMode.basketExpanded;
+
+    const basketContainer = document.getElementById("edit-basket-container");
+    const mainContainer = document.getElementById("edit-main-container");
+    const toggleBtn = document.getElementById("btn-toggle-basket");
+
+    if (playlistEditMode.basketExpanded) {
+        // Expande a cesta
+        basketContainer.style.flex = "1";
+        basketContainer.style.width = "50%";
+        basketContainer.style.opacity = "1";
+        basketContainer.style.transform = "translateX(0)";
+        basketContainer.style.overflow = "hidden";
+        mainContainer.style.flex = "1";
+        mainContainer.style.width = "50%";
+        toggleBtn.innerHTML = '<i class="fa-solid fa-chevron-down"></i> Cesta';
+    } else {
+        // Oculta a cesta
+        basketContainer.style.flex = "0";
+        basketContainer.style.width = "0";
+        basketContainer.style.opacity = "0";
+        basketContainer.style.transform = "translateX(100%)";
+        basketContainer.style.overflow = "hidden";
+        mainContainer.style.flex = "1";
+        mainContainer.style.width = "100%";
+        toggleBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i> Cesta';
+    }
+
+    // Força re-render das listas após a transição
+    setTimeout(() => {
+        const mainList = document.getElementById("edit-main-list");
+        const basketList = document.getElementById("edit-basket-list");
+        if (mainList && mainList._renderVisible) mainList._renderVisible();
+        if (basketList && basketList._renderVisible) basketList._renderVisible();
+    }, 200);
+}
+
+// ========================
+// edit mode - virtual drag and drop
+// ========================
+
+const EditDrag = (() => {
+    const ITEM_H = 48; // altura de cada item em px
+    const PADDING = 8; // padding do container
+
+    let ghost       = null;
+    let originList  = null; // "main" | "basket"
+    let originIndex = null;
+    let currentList = null; // lista onde o cursor está agora
+    let insertIndex = null;
+    let offsetY     = 0;    // onde no item o clique aconteceu
+
+    // ── scroll automático durante drag ──
+    let _scrollRAF   = null;
+    let _scrollSpeed = 0;
+    let _scrollEl    = null;
+
+    function _autoScroll() {
+        if (_scrollEl && _scrollSpeed !== 0) {
+            _scrollEl.scrollTop += _scrollSpeed;
+        }
+        _scrollRAF = requestAnimationFrame(_autoScroll);
+    }
+
+    function _startAutoScroll(el) {
+        _scrollEl = el;
+        if (!_scrollRAF) _scrollRAF = requestAnimationFrame(_autoScroll);
+    }
+
+    function _stopAutoScroll() {
+        if (_scrollRAF) { cancelAnimationFrame(_scrollRAF); _scrollRAF = null; }
+        _scrollEl    = null;
+        _scrollSpeed = 0;
+    }
+
+    // ── placeholder ──
+    function _getPlaceholder() {
+        let ph = document.getElementById("edit-drag-placeholder");
+        if (!ph) {
+            ph = document.createElement("div");
+            ph.id = "edit-drag-placeholder";
+            ph.style.cssText = `
+                height: 2px;
+                background: var(--accent);
+                opacity: 0.75;
+                margin: 4px 0;
+                pointer-events: none;
+                box-shadow: 0 0 8px var(--accent);
+            `;
+        }
+        return ph;
+    }
+
+    function _removePlaceholder() {
+        document.getElementById("edit-drag-placeholder")?.remove();
+    }
+
+    // ── calcula índice de inserção pelo clientY ──
+    function _calcInsertIndex(listEl, clientY) {
+        const rect      = listEl.getBoundingClientRect();
+        const relY      = clientY - rect.top + listEl.scrollTop - PADDING;
+        const rawIndex  = Math.round(relY / ITEM_H);
+        const listName  = listEl.id === "edit-main-list" ? "main" : "basket";
+        const listLen   = listName === "main"
+            ? playlistEditMode.mainTracks.length
+            : playlistEditMode.basketTracks.length;
+        return Math.max(0, Math.min(rawIndex, listLen));
+    }
+
+    // ── atualiza placeholder na lista alvo ──
+    function _updatePlaceholder(listEl, clientY) {
+        const idx = _calcInsertIndex(listEl, clientY);
+        insertIndex = idx;
+
+        const ph = _getPlaceholder();
+
+        // Calcula a posição baseada no índice e altura dos itens
+        const topPos = PADDING + idx * ITEM_H;
+        ph.style.position = "absolute";
+        ph.style.top = `${topPos}px`;
+        ph.style.left = `${PADDING}px`;
+        ph.style.right = `${PADDING}px`;
+
+        listEl.appendChild(ph);
+    }
+
+    // ── cria o ghost que segue o cursor ──
+    function _createGhost(sourceEl, clientX, clientY) {
+        const rect = sourceEl.getBoundingClientRect();
+        offsetY    = clientY - rect.top;
+
+        ghost = sourceEl.cloneNode(true);
+        ghost.style.cssText = `
+            position: fixed;
+            top: ${clientY - offsetY}px;
+            left: ${rect.left}px;
+            width: ${rect.width}px;
+            height: ${ITEM_H}px;
+            opacity: 0.85;
+            pointer-events: none;
+            z-index: 9999;
+            border-radius: 4px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            background: var(--bg-3);
+        `;
+        document.body.appendChild(ghost);
+    }
+
+    function _moveGhost(clientX, clientY) {
+        if (!ghost) return;
+        ghost.style.top = `${clientY - offsetY}px`;
+    }
+
+    function _destroyGhost() {
+        ghost?.remove();
+        ghost = null;
+    }
+
+    // ── início do drag (mousedown) ──
+    function _onMouseDown(e, listName, index) {
+        if (e.button !== 0) return;
+        e.preventDefault();
+
+        originList  = listName;
+        originIndex = index;
+        currentList = listName;
+        insertIndex = index;
+
+        const sourceEl = e.currentTarget;
+        sourceEl.style.opacity = "0.3";
+
+        _createGhost(sourceEl, e.clientX, e.clientY);
+
+        const listEl = document.getElementById(
+            listName === "main" ? "edit-main-list" : "edit-basket-list"
+        );
+        _updatePlaceholder(listEl, e.clientY);
+
+        function onMouseMove(ev) {
+            _moveGhost(ev.clientX, ev.clientY);
+
+            // detecta em qual lista o cursor está
+            const mainEl   = document.getElementById("edit-main-list");
+            const basketEl = document.getElementById("edit-basket-list");
+            const mainRect   = mainEl.getBoundingClientRect();
+            const basketRect = basketEl.getBoundingClientRect();
+
+            let hoveredList = null;
+            let hoveredEl   = null;
+
+            if (ev.clientX >= mainRect.left && ev.clientX <= mainRect.right &&
+                ev.clientY >= mainRect.top  && ev.clientY <= mainRect.bottom) {
+                hoveredList = "main";
+                hoveredEl   = mainEl;
+            } else if (playlistEditMode.basketExpanded &&
+                       ev.clientX >= basketRect.left && ev.clientX <= basketRect.right &&
+                       ev.clientY >= basketRect.top  && ev.clientY <= basketRect.bottom) {
+                // Só permite drop na cesta se estiver expandida
+                hoveredList = "basket";
+                hoveredEl   = basketEl;
+            }
+
+            if (hoveredEl) {
+                currentList = hoveredList;
+                _updatePlaceholder(hoveredEl, ev.clientY);
+
+                // scroll automático nas bordas
+                const ZONE  = 60;
+                const rect  = hoveredEl.getBoundingClientRect();
+                const relY  = ev.clientY - rect.top;
+                const distB = rect.bottom - ev.clientY;
+
+                if (relY < ZONE)       _scrollSpeed = -Math.ceil((ZONE - relY) / 10);
+                else if (distB < ZONE) _scrollSpeed =  Math.ceil((ZONE - distB) / 10);
+                else                   _scrollSpeed = 0;
+
+                _startAutoScroll(hoveredEl);
+            } else {
+                _stopAutoScroll();
+            }
+        }
+
+        function onMouseUp() {
+            sourceEl.style.opacity = "";
+            _destroyGhost();
+            _removePlaceholder();
+            _stopAutoScroll();
+
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup",   onMouseUp);
+
+            // aplica a mudança nos arrays
+            _commitDrop();
+        }
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup",   onMouseUp);
+    }
+
+    // ── aplica o drop nos arrays e re-renderiza ──
+    function _commitDrop() {
+        if (originList === null || insertIndex === null) return;
+
+        // remove da lista de origem
+        const srcArray  = originList === "main"
+            ? playlistEditMode.mainTracks
+            : playlistEditMode.basketTracks;
+        const [track]   = srcArray.splice(originIndex, 1);
+
+        // ajusta o índice se for na mesma lista e abaixo da origem
+        let targetIdx = insertIndex;
+        if (originList === currentList && insertIndex > originIndex) {
+            targetIdx--;
+        }
+
+        // insere na lista de destino
+        const dstArray = currentList === "main"
+            ? playlistEditMode.mainTracks
+            : playlistEditMode.basketTracks;
+        dstArray.splice(targetIdx, 0, track);
+
+        originList  = null;
+        originIndex = null;
+        currentList = null;
+        insertIndex = null;
+
+        renderEditTrackLists();
+    }
+
+    // ── expõe só o necessário ──
+    return { bindItem: _onMouseDown };
+})();
+
+function renderEditTrackLists() {
+    const ITEM_H   = 48;
+    const PADDING  = 8;
+
+    function setupVirtualList(listEl, tracks) {
+        const totalH = tracks.length * ITEM_H + PADDING * 2;
+        listEl.style.position = "relative";
+        listEl.style.height   = `${totalH}px`;
+
+        // atualiza o container pai (só para a lista principal)
+        if (listEl.id === "edit-main-list") {
+            const container = document.getElementById("edit-main-container");
+            if (container) container.style.height = `${totalH + 52}px`; // +52 pelo header "Principal"
+        }
+
+        listEl.innerHTML = "";
+
+        const listName = listEl.id === "edit-main-list" ? "main" : "basket";
+
+        function renderVisible() {
+            if (!playlistEditMode.active) return;
+
+            const scrollTop = listEl.scrollTop;
+            const viewH     = listEl.clientHeight;
+            const BUFFER    = 10;
+            const start     = Math.max(0, Math.floor(scrollTop / ITEM_H) - BUFFER);
+            const end       = Math.min(tracks.length, Math.ceil((scrollTop + viewH) / ITEM_H) + BUFFER);
+
+            // remove os que saíram da janela
+            listEl.querySelectorAll(".edit-track-item").forEach(el => {
+                const pos = parseInt(el.dataset.pos);
+                if (pos < start || pos >= end) el.remove();
+            });
+
+            const rendered = new Set(
+                [...listEl.querySelectorAll(".edit-track-item")].map(el => parseInt(el.dataset.pos))
+            );
+
+            for (let i = start; i < end; i++) {
+                if (rendered.has(i)) continue;
+
+                const track = tracks[i];
+                const el    = document.createElement("div");
+                el.className        = "edit-track-item";
+                el.dataset.pos      = i;
+                el.dataset.trackId  = track.id;
+                el.style.cssText    = `
+                    position: absolute;
+                    top: ${PADDING + i * ITEM_H}px;
+                    left: ${PADDING}px;
+                    right: ${PADDING}px;
+                    height: ${ITEM_H - 4}px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 0 8px;
+                    background: var(--bg-2);
+                    border-radius: 4px;
+                    cursor: grab;
+                    user-select: none;
+                `;
+                el.innerHTML = `
+                    <span style="font-size:12px;color:var(--text-3);width:28px;text-align:right;flex-shrink:0;">${i + 1}</span>
+                    <img data-src="/media/track/${track.id}/cover"
+                        style="width:32px;height:32px;border-radius:4px;object-fit:cover;flex-shrink:0;background:var(--bg-3);"
+                        onerror="this.style.opacity='0.2'">
+                    <span style="font-size:13px;color:var(--text-1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                        ${track.title}
+                    </span>
+                    <i class="fa-solid fa-grip-vertical" style="color:var(--text-3);flex-shrink:0;"></i>
+                `;
+                const img = el.querySelector("img");
+                requestAnimationFrame(() => { img.src = img.dataset.src; });
+
+                el.addEventListener("mousedown", (e) => {
+                    EditDrag.bindItem(e, listName, i);
+                });
+
+                listEl.appendChild(el);
+            }
+        }
+
+        listEl.addEventListener("scroll", renderVisible);
+        renderVisible();
+
+        // guarda referência para forçar re-render quando necessário
+        listEl._renderVisible = renderVisible;
+    }
+
+    const mainEl   = document.getElementById("edit-main-list");
+    const basketEl = document.getElementById("edit-basket-list");
+
+    setupVirtualList(mainEl,   playlistEditMode.mainTracks);
+    setupVirtualList(basketEl, playlistEditMode.basketTracks);
+}
+
+function setupDragDrop() {
+    // substituído pelo EditDrag — não faz nada
+}
+
+function createEditTrackItem() {
+    // substituído pelo renderEditTrackLists virtual — não faz nada
+}
+
+function savePlaylistEdit() {
+    const name = document.getElementById("pl-name-edit").value.trim();
+    const description = document.getElementById("pl-desc-edit").value.trim();
+
+    const finalTrackIds = [
+        ...playlistEditMode.mainTracks.map(t => t.id),
+        ...playlistEditMode.basketTracks.map(t => t.id)
+    ];
+
+    const coverPromise = playlistEditMode.selectedCoverFile
+        ? uploadPlaylistCover(playlistEditMode.playlistId, playlistEditMode.selectedCoverFile)
+        : Promise.resolve({ status: "ok" });
+
+    coverPromise
+        .then(() => updatePlaylistMeta(playlistEditMode.playlistId, name, description))
+        .then(() => reorderPlaylistTracks(playlistEditMode.playlistId, finalTrackIds))
+        .then(() => {
+            const playlistId = playlistEditMode.playlistId;
+
+            // 1. Restaura o DOM primeiro (com estado ainda válido)
+            restorePlaylistUI();
+
+            // 2. Só depois limpa o estado
+            playlistEditMode.active = false;
+            playlistEditMode.playlistId = null;
+            playlistEditMode.originalMeta = null;
+            playlistEditMode.originalTracks = [];
+            playlistEditMode.mainTracks = [];
+            playlistEditMode.basketTracks = [];
+            playlistEditMode.selectedCoverFile = null;
+            playlistEditMode.basketExpanded = false;
+
+            // 3. Agora recarrega com o DOM já pronto
+            const sidebarItem = document.querySelector(`.sidebar-playlist[data-playlist-id="${playlistId}"]`);
+            const playlistName = sidebarItem?.querySelector(".sidebar-playlist-name").textContent;
+            if (playlistName) openPlaylist(playlistId, playlistName);
+        })
+        .catch(err => {
+            alert("Erro ao salvar: " + err.message);
+        });
+}
+
 function highlightTrack(id) {
     document.querySelectorAll(".track-item").forEach(el => {
         el.classList.toggle("playing", el.dataset.id === id);
@@ -449,6 +1073,7 @@ function formatDuration(ms) {
 // ========================
 
 function openTrackPopup(btn, track) {
+    if (playlistEditMode.active) return;
     closeAllPopups();
 
     const popup = document.createElement("div");
