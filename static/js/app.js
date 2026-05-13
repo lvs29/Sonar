@@ -4,11 +4,11 @@
 // helpers
 // ========================
 
-function decodeHtml(str) {
-    if (!str) return "";
-    const txt = document.createElement("textarea");
-    txt.innerHTML = str;
-    return txt.value;
+function setTextNodes(el, map) {
+    Object.entries(map).forEach(([selector, value]) => {
+        const node = el.querySelector(selector);
+        if (node) node.textContent = safeText(value);
+    });
 }
 
 function showConfirm(options) {
@@ -103,8 +103,9 @@ async function loadSidebar() {
             <img class="sidebar-playlist-cover"
                  src="/library/playlist/${pl.id}/cover"
                  onerror="this.style.opacity='0'">
-            <span class="sidebar-playlist-name">${pl.name}</span>
+            <span class="sidebar-playlist-name"></span>
         `;
+        setTextNodes(el, { ".sidebar-playlist-name": pl.name });
         el.addEventListener("click", () => openPlaylist(pl.id, pl.name));
         list.appendChild(el);
     });
@@ -143,8 +144,9 @@ function renderHomepage(playlists) {
                  onerror="this.style.opacity='0'"
                  style="width:44px;height:44px;border-radius:6px;object-fit:cover;background:var(--bg-3);flex-shrink:0;">
             <div>
-                <div style="font-size:13px;font-weight:500;color:var(--text);">${pl.name}</div>
+                <div class="homepage-playlist-name" style="font-size:13px;font-weight:500;color:var(--text);"></div>
             </div>`;
+        setTextNodes(el, { ".homepage-playlist-name": pl.name });
         el.addEventListener("mouseover", () => el.style.background = "var(--bg-hover)");
         el.addEventListener("mouseout",  () => el.style.background = "var(--bg-2)");
         el.addEventListener("click", () => openPlaylist(pl.id, pl.name));
@@ -304,15 +306,19 @@ function renderTrackList(allTracks, downloadedTracks, playlistId) {
                 <div class="track-num">${i + 1}</div>
                 <img class="track-cover" src="${coverUrl(track.id)}" loading="lazy" onerror="this.style.opacity='0.2'">
                 <div>
-                    <div class="track-title">${decodeHtml(track.title)}</div>
-                    <div class="track-artist">${decodeHtml(track.artist)}</div>
+                    <div class="track-title"></div>
+                    <div class="track-artist"></div>
                 </div>
-                <div class="track-album">${decodeHtml(track.album)}</div>
+                <div class="track-album"></div>
                 <div class="track-plays" style="font-size:12px;color:var(--text-3);">${track.play_count || 0}</div>
                 <div class="track-duration">${formatDuration(track.duration_ms)}</div>
                 <div class="track-actions">
                     <button class="track-dots" data-id="${track.id}" data-yt-url="${track.youtube_url || ''}">···</button>
                 </div>`;
+
+            el.querySelector(".track-title").textContent  = track.title  || "";
+            el.querySelector(".track-artist").textContent = track.artist || "";
+            el.querySelector(".track-album").textContent  = track.album  || "";
 
             if (track.downloaded) {
                 el.addEventListener("click", () => {
@@ -453,10 +459,14 @@ function openPlaylistEditMode(playlistId, meta, tracks) {
         <img id="pl-cover-edit" class="playlist-cover" src="/library/playlist/${playlistId}/cover" alt="" style="cursor:pointer;">
         <div style="flex:1;">
             <div class="playlist-info-label">Playlist</div>
-            <input id="pl-name-edit" class="edit-input" value="${meta.name}" style="font-size:24px;font-weight:700;background:transparent;border:none;color:var(--text-1);width:100%;margin-bottom:8px;">
-            <input id="pl-desc-edit" class="edit-input" value="${meta.description || ''}" placeholder="Descrição" style="font-size:14px;background:transparent;border:1px solid var(--border);color:var(--text-2);width:100%;padding:8px;border-radius:4px;">
+            <input id="pl-name-edit" class="edit-input" value="" style="font-size:24px;font-weight:700;background:transparent;border:none;color:var(--text-1);width:100%;margin-bottom:8px;">
+            <input id="pl-desc-edit" class="edit-input" value="" placeholder="Descrição" style="font-size:14px;background:transparent;border:1px solid var(--border);color:var(--text-2);width:100%;padding:8px;border-radius:4px;">
             <div id="pl-actions-edit" style="margin-top:12px;"></div>
         </div>`;
+
+    // Preenche os inputs de forma segura
+    header.querySelector("#pl-name-edit").value = meta.name || "";
+    header.querySelector("#pl-desc-edit").value = meta.description || "";
 
     // Upload de capa no modo de edição
     header.querySelector("#pl-cover-edit").addEventListener("click", () => {
@@ -556,11 +566,17 @@ function restorePlaylistUI() {
         <img id="pl-cover" class="playlist-cover" src="/library/playlist/${playlistId}/cover" alt="">
         <div style="flex:1;">
             <div class="playlist-info-label">Playlist</div>
-            <div class="playlist-info-name" id="pl-name">${meta.name}</div>
-            <div id="pl-description" class="playlist-description">${meta.description || ''}</div>
+            <div class="playlist-info-name" id="pl-name"></div>
+            <div id="pl-description" class="playlist-description"></div>
             <div class="playlist-info-meta" id="pl-meta"></div>
             <div id="pl-actions" style="margin-top:12px;"></div>
         </div>`;
+    
+    // Preenche os campos de forma segura
+    setTextNodes(header, {
+        "#pl-name": meta.name,
+        "#pl-description": meta.description || ""
+    });
 
     // Configura a descrição
     const descEl = document.getElementById("pl-description");
@@ -600,10 +616,18 @@ function restorePlaylistUI() {
     document.getElementById("btn-delete-playlist").addEventListener("click", async () => {
         const ok = await showConfirm({
             title:         "Remover playlist",
-            body:          `Tem certeza que quer remover <strong>${meta.name}</strong> da biblioteca?<br><br>Os arquivos de áudio não serão apagados.`,
+            body:          `Tem certeza que quer remover <strong id="confirm-playlist-name"></strong> da biblioteca?<br><br>Os arquivos de áudio não serão apagados.`,
             confirmLabel:  "Remover",
             danger:        true,
         });
+        
+        // Preenche o nome da playlist de forma segura
+        setTimeout(() => {
+            const nameEl = document.getElementById("confirm-playlist-name");
+            if (nameEl) {
+                nameEl.textContent = meta.name;
+            }
+        }, 0);
         if (!ok) return;
         const result = await deletePlaylist(playlistId);
         if (result.status === "ok") {
@@ -970,11 +994,10 @@ function renderEditTrackLists() {
                     <img data-src="/media/track/${track.id}/cover"
                         style="width:32px;height:32px;border-radius:4px;object-fit:cover;flex-shrink:0;background:var(--bg-3);"
                         onerror="this.style.opacity='0.2'">
-                    <span style="font-size:13px;color:var(--text-1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                        ${track.title}
-                    </span>
+                    <span class="edit-track-title" style="font-size:13px;color:var(--text-1);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
                     <i class="fa-solid fa-grip-vertical" style="color:var(--text-3);flex-shrink:0;"></i>
                 `;
+                setTextNodes(el, { ".edit-track-title": track.title });
                 const img = el.querySelector("img");
                 requestAnimationFrame(() => { img.src = img.dataset.src; });
 
@@ -1151,7 +1174,7 @@ function openTrackPopup(btn, track) {
                 <input type="checkbox" value="${p.id}" 
                     ${currentPlaylists.includes(p.id) ? "checked" : ""}
                     style="accent-color:var(--accent);width:14px;height:14px;flex-shrink:0;">
-                <span>${escapeHtml(p.name)}</span>
+                <span class="playlist-name"></span>
             </label>
         `).join("") + `
             <div style="border-top:1px solid var(--border);margin:4px 0;"></div>
@@ -1159,6 +1182,16 @@ function openTrackPopup(btn, track) {
                 <i class="fa-solid fa-check" style="width:16px;"></i> Confirmar
             </div>
         `;
+
+        // Preenche os nomes das playlists de forma segura
+        playlists.forEach((p, i) => {
+            const label = sub.querySelectorAll(".ctx-item")[i];
+            if (label) {
+                setTextNodes(label, {
+                    ".playlist-name": p.name
+                });
+            }
+        });
 
         sub.querySelector("#sub-playlist-save").addEventListener("click", async () => {
             const checked = [...sub.querySelectorAll("input:checked")].map(el => el.value);
@@ -1178,22 +1211,53 @@ function openTrackPopup(btn, track) {
             <div style="padding:8px 12px;display:flex;flex-direction:column;gap:6px;min-width:240px;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
                     <img id="sub-cover-preview" src="${coverUrl(track.id)}?t=${Date.now()}"
-                         style="width:40px;height:40px;border-radius:4px;object-fit:cover;background:var(--bg-3);"
-                         onerror="this.style.opacity='0.2'">
+                        style="width:40px;height:40px;border-radius:4px;object-fit:cover;background:var(--bg-3);"
+                        onerror="this.style.opacity='0.2'">
                     <div style="display:flex;flex-direction:column;gap:4px;flex:1;">
                         <button class="btn" id="sub-cover-upload" style="font-size:11px;padding:3px 8px;">
                             <i class="fa-solid fa-upload"></i> Capa
                         </button>
-                        <input id="sub-cover-url" class="track-popup-input" placeholder="URL da capa..." style="margin:0;font-size:11px;">
+                        <div style="display:flex;gap:4px;">
+                            <input id="sub-cover-url" class="track-popup-input" placeholder="URL..." style="margin:0;font-size:11px;flex:1;">
+                            <button class="btn" id="sub-spotify-fetch" style="font-size:11px;padding:3px 6px;flex-shrink:0;" title="Buscar capa do Spotify">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </button>
+                        </div>
                     </div>
                     <input type="file" id="sub-cover-file" accept=".jpg,.jpeg,.png,.webp" style="display:none;">
                 </div>
-                <input id="sub-title"  class="track-popup-input" placeholder="Título"  value="${escapeHtml(track.title  || '')}">
-                <input id="sub-artist" class="track-popup-input" placeholder="Artista" value="${escapeHtml(track.artist || '')}">
-                <input id="sub-album"  class="track-popup-input" placeholder="Álbum"   value="${escapeHtml(track.album  || '')}">
+                <input id="sub-title"  class="track-popup-input" placeholder="Título"  value="">
+                <input id="sub-artist" class="track-popup-input" placeholder="Artista" value="">
+                <input id="sub-album"  class="track-popup-input" placeholder="Álbum"   value="">
                 <button class="btn btn-accent" id="sub-edit-save" style="margin-top:4px;">Salvar</button>
             </div>
         `;
+
+        // Preenche os inputs de forma segura
+        sub.querySelector("#sub-title").value = track.title || "";
+        sub.querySelector("#sub-artist").value = track.artist || "";
+        sub.querySelector("#sub-album").value = track.album || "";
+
+        sub.querySelector("#sub-spotify-fetch").addEventListener("click", async () => {
+            const url = sub.querySelector("#sub-cover-url").value.trim();
+            if (!url || !url.includes("spotify.com")) return;
+
+            const btn = sub.querySelector("#sub-spotify-fetch");
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
+
+            try {
+                const result = await fetchSpotifyCover(url);
+                if (result.error) throw new Error(result.error);
+                sub.querySelector("#sub-cover-preview").src = result.cover_url;
+                sub.querySelector("#sub-cover-url").value   = result.cover_url;
+            } catch (err) {
+                alert("Erro ao buscar capa: " + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i>`;
+            }
+        });
 
         initAutocomplete(sub.querySelector("#sub-artist"), fetchArtists);
         initAutocomplete(sub.querySelector("#sub-album"),  fetchAlbums);
@@ -1228,9 +1292,11 @@ function openTrackPopup(btn, track) {
             // atualiza na lista
             const trackEl = document.querySelector(`[data-id="${track.id}"]`);
             if (trackEl) {
-                trackEl.querySelector(".track-title")?.textContent  != null && (trackEl.querySelector(".track-title").textContent  = title  || track.title);
-                trackEl.querySelector(".track-artist")?.textContent != null && (trackEl.querySelector(".track-artist").textContent = artist || track.artist);
-                trackEl.querySelector(".track-album")?.textContent  != null && (trackEl.querySelector(".track-album").textContent  = album  || track.album);
+                setTextNodes(trackEl, {
+                    ".track-title":  title  || track.title,
+                    ".track-artist": artist || track.artist,
+                    ".track-album":  album  || track.album,
+                });
                 const coverImg = trackEl.querySelector(".track-cover");
                 if (coverImg) coverImg.src = `${coverUrl(track.id)}?t=${Date.now()}`;
             }
@@ -1291,8 +1357,16 @@ function openTrackPopup(btn, track) {
     popup.querySelector("#ctx-delete").addEventListener("click", async () => {
         const ok = await showConfirm({
             title: "Remover música",
-            body: `Deseja remover "${decodeHtml(track.title)}" do banco de dados? (Música + arquivo)`
+            body: `Deseja remover "<span id="confirm-track-title"></span>" do banco de dados? (Música + arquivo)`
         });
+        
+        // Preenche o título da música de forma segura
+        setTimeout(() => {
+            const titleEl = document.getElementById("confirm-track-title");
+            if (titleEl) {
+                titleEl.textContent = track.title;
+            }
+        }, 0);
         if (!ok) return;
  
         await deleteTrack(track.id, true);
@@ -1313,10 +1387,14 @@ function openTrackPopup(btn, track) {
     // fecha ao clicar fora
     setTimeout(() => {
         function outsideClick(e) {
-            if (!popup.contains(e.target) && !document.querySelector(".ctx-submenu")?.contains(e.target) && e.target !== btn) {
-                closeAllPopups();
-                document.removeEventListener("click", outsideClick);
-            }
+            if (
+                popup.contains(e.target) ||
+                e.target === btn ||
+                e.target.closest(".ctx-submenu") ||
+                e.target.closest(".track-popup")
+            ) return;
+            closeAllPopups();
+            document.removeEventListener("click", outsideClick);
         }
         document.addEventListener("click", outsideClick);
     }, 100);
@@ -1570,6 +1648,37 @@ const QueuePanel = (() => {
                 ` : ""}
             </div>`;
 
+        // Preenche os campos de texto de forma segura
+        if (current) {
+            const currentEl = panel.querySelector(".queue-track-row");
+            if (currentEl) {
+                setTextNodes(currentEl, {
+                    ".queue-track-title": current.title,
+                    ".queue-track-artist": current.artist
+                });
+            }
+        }
+
+        manual.forEach((track, i) => {
+            const el = panel.querySelector(`[data-unified-idx="${i}"]`);
+            if (el) {
+                setTextNodes(el, {
+                    ".queue-track-title": track.title,
+                    ".queue-track-artist": track.artist
+                });
+            }
+        });
+
+        playlist.forEach((track, i) => {
+            const el = panel.querySelector(`[data-unified-idx="${manual.length + i}"]`);
+            if (el) {
+                setTextNodes(el, {
+                    ".queue-track-title": track.title,
+                    ".queue-track-artist": track.artist
+                });
+            }
+        });
+
         panel.querySelector("#panel-close").addEventListener("click", toggle);
         _initDrag();
     }
@@ -1580,8 +1689,8 @@ const QueuePanel = (() => {
                 <span class="queue-drag-handle" title="Arrastar">⠿</span>
                 <img src="${coverUrl(track.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.title)}</div>
-                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.artist)}</div>
+                    <div class="queue-track-title"></div>
+                    <div class="queue-track-artist"></div>
                 </div>
                 <button class="ctrl-btn" style="font-size:12px;flex-shrink:0;" data-remove-idx="${i}">✕</button>
             </div>`;
@@ -1592,8 +1701,8 @@ const QueuePanel = (() => {
             <div class="queue-track-row" style="background:#1a1200;cursor:default;">
                 <img src="${coverUrl(track.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--accent);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.title)}</div>
-                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.artist)}</div>
+                    <div class="queue-track-title" style="color:var(--accent);font-weight:500;"></div>
+                    <div class="queue-track-artist"></div>
                 </div>
             </div>`;
     }
@@ -1604,8 +1713,8 @@ const QueuePanel = (() => {
                 <span class="queue-drag-handle" title="Arrastar">⠿</span>
                 <img src="${coverUrl(track.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.title)}</div>
-                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.artist)}</div>
+                    <div class="queue-track-title"></div>
+                    <div class="queue-track-artist"></div>
                 </div>
                 <button class="ctrl-btn" style="font-size:12px;flex-shrink:0;" data-remove="${i}">✕</button>
             </div>`;
@@ -1616,8 +1725,8 @@ const QueuePanel = (() => {
             <div class="queue-track-row" data-pl-id="${track.id}" style="cursor:pointer;">
                 <img src="${coverUrl(track.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);flex-shrink:0;" onerror="this.style.opacity='0.2'">
                 <div style="flex:1;min-width:0;">
-                    <div style="font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.title)}</div>
-                    <div style="font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${decodeHtml(track.artist)}</div>
+                    <div class="queue-track-title"></div>
+                    <div class="queue-track-artist"></div>
                 </div>
             </div>`;
     }
@@ -1796,16 +1905,28 @@ async function initManage() {
             <thead><tr><th>Título</th><th>Artista</th><th>Erro</th><th>URL Manual</th></tr></thead>
             <tbody>${failed.map(f => `
                 <tr>
-                    <td>${decodeHtml(f.title)}</td>
-                    <td>${decodeHtml(f.artist)}</td>
-                    <td style="color:var(--danger);max-width:200px;overflow:hidden;text-overflow:ellipsis;">${f.error_msg || "—"}</td>
+                    <td class="failed-title"></td>
+                    <td class="failed-artist"></td>
+                    <td class="failed-error" style="color:var(--danger);max-width:200px;overflow:hidden;text-overflow:ellipsis;"></td>
                     <td style="display:flex;gap:6px;">
                         <input class="url-input" placeholder="youtube.com/watch?v=..." id="url-${f.id}" style="width:200px;" autocomplete="off">
                         <button class="btn btn-accent" onclick="submitUrl('${f.id}')">Baixar</button>
                     </td>
                 </tr>`).join("")}
             </tbody>
-           </table>`;
+        </table>`;
+
+    // Preenche os campos de forma segura
+    failed.forEach((f, i) => {
+        const row = failedEl.querySelectorAll("tbody tr")[i];
+        if (row) {
+            setTextNodes(row, {
+                ".failed-title":  f.title,
+                ".failed-artist": f.artist,
+                ".failed-error":  f.error_msg || "—",
+            });
+        }
+    });
 
     const orphans  = await fetchOrphans();
     const orphanEl = document.getElementById("orphan-list");
@@ -1825,8 +1946,8 @@ async function initManage() {
                 ${orphans.map(t => `
                     <tr id="orphan-row-${t.id}">
                         <td><img src="${coverUrl(t.id)}" style="width:36px;height:36px;border-radius:4px;object-fit:cover;background:var(--bg-3);" onerror="this.style.opacity='0.2'"></td>
-                        <td style="color:var(--text);">${decodeHtml(t.title)}</td>
-                        <td>${decodeHtml(t.artist)}</td>
+                        <td class="orphan-title" style="color:var(--text);"></td>
+                        <td class="orphan-artist"></td>
                         <td>
                             ${t.downloaded
                                 ? `<span style="color:var(--success);font-size:12px;"><i class="fa-solid fa-check"></i> baixada</span>`
@@ -1845,6 +1966,17 @@ async function initManage() {
             </tbody>
         </table>
         <p style="font-size:12px;color:var(--text-3);margin-top:8px;">${orphans.length} track${orphans.length !== 1 ? "s" : ""} órfã${orphans.length !== 1 ? "s" : ""}</p>`;
+    
+    // Preenche os campos de forma segura
+    orphans.forEach((t, i) => {
+        const row = document.getElementById(`orphan-row-${t.id}`);
+        if (row) {
+            setTextNodes(row, {
+                ".orphan-title": t.title,
+                ".orphan-artist": t.artist
+            });
+        }
+    });
 }
 
 async function deleteOrphan(id, withFiles) {
@@ -1951,15 +2083,20 @@ async function openAllTracks() {
             <div class="track-num">${i + 1}</div>
             <img class="track-cover" src="${coverUrl(track.id)}" loading="lazy" onerror="this.style.opacity='0.2'">
             <div>
-                <div class="track-title">${decodeHtml(track.title)}</div>
-                <div class="track-artist">${decodeHtml(track.artist)}</div>
+                <div class="track-title"></div>
+                <div class="track-artist"></div>
             </div>
-            <div class="track-album">${decodeHtml(track.album)}</div>
+            <div class="track-album"></div>
             <div class="track-plays" style="font-size:12px;color:var(--text-3);">${track.play_count || 0}</div>
             <div class="track-duration">${formatDuration(track.duration_ms)}</div>
             <div class="track-actions">
                 <button class="track-dots" data-id="${track.id}" data-yt-url="${track.youtube_url || ''}">···</button>
             </div>`;
+        setTextNodes(el, {
+            ".track-title":  track.title,
+            ".track-artist": track.artist,
+            ".track-album":  track.album,
+        });
 
         if (track.downloaded) {
             el.addEventListener("click", () => {
@@ -2024,10 +2161,10 @@ async function restoreState() {
         document.getElementById("time-current").textContent = formatDuration(savedTime * 1000);
     }, { once: true });
 
-    document.getElementById("player-title").textContent  = decodeHtml(track.title);
+    document.getElementById("player-title").textContent  = safeText(track.title);
     const artistInner = document.getElementById("player-artist-inner");
     if (artistInner) {
-        artistInner.textContent = decodeHtml(track.artist);
+        artistInner.textContent = safeText(track.artist);
     }
     document.getElementById("player-cover").src          = coverUrl(track.id);
 
@@ -2055,8 +2192,8 @@ async function restoreState() {
     if ("mediaSession" in navigator) {
         const coverUrl = `${API}/media/track/${track.id}/cover`;
         navigator.mediaSession.metadata = new MediaMetadata({
-            title: decodeHtml(track.title),
-            artist: decodeHtml(track.artist),
+            title: safeText(track.title),
+            artist: safeText(track.artist),
             album: track.album || "",
             artwork: [{ src: coverUrl, sizes: "512x512", type: "image/jpeg" }]
         });
@@ -2071,8 +2208,8 @@ async function restoreState() {
     const fullArtist = document.getElementById("player-artist-full");
 
     if (miniCover)  miniCover.src  = fullCover.src  = coverUrl(track.id);
-    if (miniTitle)  miniTitle.textContent  = fullTitle.textContent  = decodeHtml(track.title);
-    if (miniArtist) miniArtist.textContent = fullArtist.textContent = decodeHtml(track.artist);
+    if (miniTitle)  miniTitle.textContent  = fullTitle.textContent  = safeText(track.title);
+    if (miniArtist) miniArtist.textContent = fullArtist.textContent = safeText(track.artist);
 
     setTimeout(highlightCurrentTrack, 300);
 }
@@ -2199,8 +2336,8 @@ function initSearch() {
                         <div class="track-num"></div>
                         <img class="track-cover" src="${r.thumbnail}" loading="lazy" onerror="this.style.opacity='0.2'">
                         <div>
-                            <div class="track-title">${escapeHtml(r.title)}</div>
-                            <div class="track-artist">${escapeHtml(r.artist)}</div>
+                            <div class="track-title"></div>
+                            <div class="track-artist"></div>
                         </div>
                         <div class="track-album"></div>
                         <div class="track-plays"></div>
@@ -2208,6 +2345,10 @@ function initSearch() {
                         <div class="track-actions">
                             <button class="btn btn-accent yt-add-btn" style="font-size:11px;padding:4px 10px;">+ Adicionar</button>
                         </div>`;
+                    setTextNodes(el, {
+                        ".track-title": r.title,
+                        ".track-artist": r.artist
+                    });
  
                     el.querySelector(".yt-add-btn").addEventListener("click", (evt) => {
                         evt.stopPropagation();
@@ -2244,15 +2385,20 @@ function initSearch() {
                         <div class="track-num">${i + 1}</div>
                         <img class="track-cover" src="${coverUrl(track.id)}" loading="lazy" onerror="this.style.opacity='0.2'">
                         <div>
-                            <div class="track-title">${decodeHtml(track.title)}</div>
-                            <div class="track-artist">${decodeHtml(track.artist)}</div>
+                            <div class="track-title"></div>
+                            <div class="track-artist"></div>
                         </div>
-                        <div class="track-album">${decodeHtml(track.album)}</div>
+                        <div class="track-album"></div>
                         <div class="track-plays" style="font-size:12px;color:var(--text-3);">${track.play_count || 0}</div>
                         <div class="track-duration">${formatDuration(track.duration_ms)}</div>
                         <div class="track-actions">
                             <button class="track-dots" data-id="${track.id}" data-yt-url="${track.youtube_url || ''}">···</button>
                         </div>`;
+                    setTextNodes(el, {
+                        ".track-title":  track.title,
+                        ".track-artist": track.artist,
+                        ".track-album":  track.album,
+                    });
  
                     if (track.downloaded) {
                         el.addEventListener("click", () => {
@@ -2341,9 +2487,7 @@ async function openAddToPlaylistModal(ytTrack) {
         <div class="modal">
             <div class="modal-title">Adicionar à playlist</div>
             <div class="modal-body">
-                <div style="font-size:13px;color:var(--text);margin-bottom:12px;font-weight:500;">
-                    ${escapeHtml(ytTrack.title)}
-                </div>
+                <div id="yt-track-title" style="font-size:13px;color:var(--text);margin-bottom:12px;font-weight:500;"></div>
                 <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">
                     Playlists
                 </div>
@@ -2351,7 +2495,7 @@ async function openAddToPlaylistModal(ytTrack) {
                     ${playlists.map(p => `
                         <label style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;background:var(--bg-2);border:1px solid var(--border);">
                             <input type="checkbox" value="${p.id}" style="accent-color:var(--accent);width:16px;height:16px;">
-                            <span style="font-size:13px;color:var(--text);">${escapeHtml(p.name)}</span>
+                            <span class="playlist-name" style="font-size:13px;color:var(--text);"></span>
                         </label>
                     `).join("")}
                     ${!playlists.length ? `<div style="color:var(--text-3);font-size:13px;">Nenhuma playlist criada ainda.</div>` : ""}
@@ -2367,6 +2511,21 @@ async function openAddToPlaylistModal(ytTrack) {
         </div>`;
 
     document.body.appendChild(overlay);
+
+    // Preenche os campos de texto de forma segura
+    setTextNodes(overlay, {
+        "#yt-track-title": ytTrack.title
+    });
+
+    // Preenche os nomes das playlists
+    playlists.forEach((p, i) => {
+        const label = overlay.querySelectorAll("#playlist-checklist label")[i];
+        if (label) {
+            setTextNodes(label, {
+                ".playlist-name": p.name
+            });
+        }
+    });
 
     overlay.querySelector("#modal-cancel").addEventListener("click", () => overlay.remove());
 
@@ -2438,7 +2597,7 @@ async function openConfirmUploadModal(preview) {
                 ].map(f => `
                     <div style="margin-bottom:12px;">
                         <div style="font-size:12px;color:var(--text-3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">${f.label}</div>
-                        <input id="${f.id}" class="url-input" style="width:100%;" value="${escapeHtml(f.value)}" autocomplete="off">
+                        <input id="${f.id}" class="url-input" style="width:100%;" value="" autocomplete="off">
                     </div>
                 `).join("")}
 
@@ -2447,7 +2606,7 @@ async function openConfirmUploadModal(preview) {
                     ${playlists.map(p => `
                         <label style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:6px;cursor:pointer;background:var(--bg-2);border:1px solid var(--border);">
                             <input type="checkbox" value="${p.id}" style="accent-color:var(--accent);width:16px;height:16px;">
-                            <span style="font-size:13px;color:var(--text);">${escapeHtml(p.name)}</span>
+                            <span class="playlist-name" style="font-size:13px;color:var(--text);"></span>
                         </label>
                     `).join("")}
                     ${!playlists.length ? `<div style="color:var(--text-3);font-size:13px;">Nenhuma playlist criada ainda.</div>` : ""}
@@ -2461,6 +2620,21 @@ async function openConfirmUploadModal(preview) {
         </div>`;
 
     document.body.appendChild(overlay);
+
+    // Preenche os inputs de forma segura
+    overlay.querySelector("#up-title").value = preview.title || "";
+    overlay.querySelector("#up-artist").value = preview.artist || "";
+    overlay.querySelector("#up-album").value = preview.album || "";
+
+    // Preenche os nomes das playlists de forma segura
+    playlists.forEach((p, i) => {
+        const label = overlay.querySelectorAll("#modal-body label")[i];
+        if (label) {
+            setTextNodes(label, {
+                ".playlist-name": p.name
+            });
+        }
+    });
 
     // init autocomplete para artista e álbum
     initAutocomplete(overlay.querySelector("#up-artist"), fetchArtists);

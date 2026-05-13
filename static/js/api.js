@@ -11,20 +11,28 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 
+function safeText(str) {
+    return (str || "").replace(/&amp;/g, "&")
+                      .replace(/&lt;/g, "<")
+                      .replace(/&gt;/g, ">")
+                      .replace(/&quot;/g, '"')
+                      .replace(/&#039;/g, "'");
+}
+
 function sanitizeTrack(t) {
     return {
         ...t,
-        title:   escapeHtml(t.title),
-        artist:  escapeHtml(t.artist),
-        album:   escapeHtml(t.album),
+        title:   t.title,
+        artist:  t.artist,
+        album:   t.album,
     };
 }
 
 function sanitizePlaylist(p) {
     return {
         ...p,
-        name:        escapeHtml(p.name),
-        description: escapeHtml(p.description),
+        name:        p.name,
+        description: p.description,
     };
 }
 
@@ -35,7 +43,7 @@ async function fetchPlaylists() {
 
 async function fetchPlaylistTracks(playlistId) {
     const r = await fetch(`${API}/library/playlist/${playlistId}`);
-    return (await r.json()).map(sanitizeTrack);
+    return r.json();
 }
 
 async function fetchQueueStatus() {
@@ -79,7 +87,7 @@ function queueStreamUrl() { return `${API}/library/queue/stream`; }
 async function fetchPlaylistPreview(playlistId) {
     const r = await fetch(`${API}/library/playlist/${playlistId}/preview`);
     const p = await r.json();
-    return { ...p, name: escapeHtml(p.name) };
+    return { ...p, name: p.name };
 }
 
 async function addPlaylist(playlistId) {
@@ -279,5 +287,10 @@ async function reorderPlaylistTracks(playlistId, trackIds) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ track_ids: trackIds }),
     });
+    return r.json();
+}
+
+async function fetchSpotifyCover(spotifyUrl) {
+    const r = await fetch(`${API}/library/spotify/cover?url=${encodeURIComponent(spotifyUrl)}`);
     return r.json();
 }

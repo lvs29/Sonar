@@ -1003,6 +1003,22 @@ body {
 
 .queue-drag-handle:active { cursor: grabbing; }
 
+.queue-track-title {
+    font-size: 13px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.queue-track-artist {
+    font-size: 11px;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .modal-overlay {
     position: fixed;
     inset: 0;

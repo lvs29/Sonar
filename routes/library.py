@@ -829,3 +829,44 @@ def replace_track_file(id):
         return jsonify({"error": str(e)}), 500
     finally:
         session.close()
+
+@library_bp.route("/spotify/cover", methods=["GET"])
+def spotify_cover():
+    import re
+    import urllib.request
+
+    url = request.args.get("url", "").strip()
+    if not url:
+        return jsonify({"error": "url obrigatória"}), 400
+
+    match = re.search(r"spotify\.com/track/([A-Za-z0-9]+)", url)
+    if not match:
+        return jsonify({"error": "link inválido"}), 400
+
+    track_id = match.group(1)
+
+    try:
+        req = urllib.request.Request(
+            f"https://open.spotify.com/embed/track/{track_id}",
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read().decode("utf-8")
+
+        m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.DOTALL)
+        if not m:
+            raise ValueError("estrutura da página não reconhecida")
+
+        entity = json.loads(m.group(1))["props"]["pageProps"]["state"]["data"]["entity"]
+        images = entity.get("visualIdentity", {}).get("image", [])
+        if not images:
+            return jsonify({"error": "capa não encontrada"}), 404
+
+        cover_url = max(images, key=lambda x: x.get("maxWidth") or x.get("maxHeight") or 0).get("url", "")
+        return jsonify({"cover_url": cover_url})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
