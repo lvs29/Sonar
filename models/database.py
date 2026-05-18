@@ -41,6 +41,7 @@ class Track(Base):
     description    = Column(String)
     play_count     = Column(Integer, default=0)
     complete_count = Column(Integer, default=0)
+    last_played    = Column(DateTime, nullable=True)
 
     cover = relationship("Cover", backref="tracks")
 
@@ -51,6 +52,7 @@ class Playlist(Base):
     name        = Column(String)
     cover_hash  = Column(String, ForeignKey("covers.hash"))
     description = Column(String)
+    last_opened = Column(DateTime, nullable=True)
 
     cover = relationship("Cover", backref="playlists")
 

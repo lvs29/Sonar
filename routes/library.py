@@ -18,6 +18,27 @@ from config import load_config, save_config
 
 library_bp = Blueprint("library", __name__)
 
+# ── helper interno ────────────────────────────────────────────────────────────
+ 
+def _track_dict(t):
+    return {
+        "id":          t.id,
+        "title":       t.title,
+        "artist":      t.artist,
+        "album":       t.album,
+        "duration_ms": t.duration_ms,
+        "downloaded":  t.downloaded,
+        "play_count":  t.play_count or 0,
+        "last_played": t.last_played.isoformat() if t.last_played else None,
+    }
+ 
+def _playlist_dict(p):
+    return {
+        "id":          p.id,
+        "name":        p.name,
+        "description": p.description or "",
+        "last_opened": p.last_opened.isoformat() if p.last_opened else None,
+    }
 
 @library_bp.route("/playlist", methods=["POST"])
 def create_playlist():
@@ -620,16 +641,15 @@ def track_played(id):
         track = session.get(Track, id)
         if not track:
             return jsonify({"error": "não encontrada"}), 404
-        
+        track.play_count  = (track.play_count or 0) + 1
+        track.last_played = datetime.utcnow()          # <- atualiza
         if completed:
-            # Música chegou ao final - incrementa apenas complete_count
             track.complete_count = (track.complete_count or 0) + 1
-        else:
-            # Música começou a tocar - incrementa apenas play_count
-            track.play_count = (track.play_count or 0) + 1
-            
         session.commit()
-        return jsonify({"play_count": track.play_count, "complete_count": track.complete_count})
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
     finally:
         session.close()
 
@@ -870,3 +890,60 @@ def spotify_cover():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 502
+
+@library_bp.route("/tracks/recent")
+def tracks_recent():
+    """50 músicas tocadas mais recentemente (last_played desc)."""
+    session = Session()
+    try:
+        tracks = session.query(Track)\
+            .filter(Track.downloaded == True, Track.last_played.isnot(None))\
+            .order_by(Track.last_played.desc())\
+            .limit(50).all()
+        return jsonify([_track_dict(t) for t in tracks])
+    finally:
+        session.close()
+ 
+ 
+@library_bp.route("/tracks/top")
+def tracks_top():
+    """50 músicas com mais plays."""
+    session = Session()
+    try:
+        tracks = session.query(Track)\
+            .filter(Track.downloaded == True, Track.play_count > 0)\
+            .order_by(Track.play_count.desc())\
+            .limit(50).all()
+        return jsonify([_track_dict(t) for t in tracks])
+    finally:
+        session.close()
+ 
+ 
+@library_bp.route("/playlists/recent")
+def playlists_recent():
+    """7 playlists abertas mais recentemente (last_opened desc)."""
+    session = Session()
+    try:
+        playlists = session.query(Playlist)\
+            .filter(Playlist.last_opened.isnot(None))\
+            .order_by(Playlist.last_opened.desc())\
+            .limit(7).all()
+        return jsonify([_playlist_dict(p) for p in playlists])
+    finally:
+        session.close()
+
+@library_bp.route("/playlist/<playlist_id>/opened", methods=["POST"])
+def playlist_opened(playlist_id):
+    session = Session()
+    try:
+        pl = session.get(Playlist, playlist_id)
+        if not pl:
+            return jsonify({"error": "não encontrada"}), 404
+        pl.last_opened = datetime.utcnow()
+        session.commit()
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        session.close()

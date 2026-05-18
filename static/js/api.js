@@ -294,3 +294,22 @@ async function fetchSpotifyCover(spotifyUrl) {
     const r = await fetch(`${API}/library/spotify/cover?url=${encodeURIComponent(spotifyUrl)}`);
     return r.json();
 }
+
+async function fetchRecentTracks() {
+    const r = await fetch(`${API}/library/tracks/recent`);
+    return (await r.json()).map(sanitizeTrack);
+}
+ 
+async function fetchTopTracks() {
+    const r = await fetch(`${API}/library/tracks/top`);
+    return (await r.json()).map(sanitizeTrack);
+}
+ 
+async function fetchRecentPlaylists() {
+    const r = await fetch(`${API}/library/playlists/recent`);
+    return (await r.json()).map(sanitizePlaylist);
+}
+ 
+async function playlistOpened(playlistId) {
+    await fetch(`${API}/library/playlist/${playlistId}/opened`, { method: "POST" });
+}

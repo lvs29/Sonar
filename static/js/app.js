@@ -62,6 +62,8 @@ function showConfirm(options) {
 function showView(name) {
     closeAllPopups();
 
+    localStorage.setItem("sonar_view", name);
+
     document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
     const el = document.getElementById(`view-${name}`);
     if (el) el.classList.add("active");
@@ -81,6 +83,7 @@ function showView(name) {
 
     if (name === "downloads") initDownloads();
     if (name === "manage")    initManage();
+    if (name === "playlists" && typeof HomeView !== 'undefined') HomeView.reload();
 }
 
 document.querySelectorAll(".nav-item[data-view]").forEach(el => {
@@ -109,49 +112,6 @@ async function loadSidebar() {
         el.addEventListener("click", () => openPlaylist(pl.id, pl.name));
         list.appendChild(el);
     });
-    renderHomepage(playlists);
-}
-
-// ========================
-// homepage
-// ========================
-
-function renderHomepage(playlists) {
-    if (!playlists.length) return;
-    const featured = playlists[0];
-
-    document.getElementById("home-featured").innerHTML = `
-        <div style="display:flex;gap:20px;align-items:flex-end;background:linear-gradient(135deg,#1a1200,#0d0d0d);border-radius:12px;padding:24px;cursor:pointer;border:1px solid var(--border);"
-             onclick="openPlaylist('${featured.id}', '${featured.name.replace(/'/g, "\\'")}')">
-            <img src="/library/playlist/${featured.id}/cover"
-                 onerror="this.style.display='none'"
-                 style="width:100px;height:100px;border-radius:8px;object-fit:cover;background:var(--bg-3);flex-shrink:0;">
-            <div>
-                <div style="font-size:11px;color:var(--accent);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">Playlist</div>
-                <div style="font-size:24px;font-weight:700;color:var(--text);margin-bottom:6px;">${featured.name}</div>
-                <button class="btn btn-accent" style="margin-top:12px;"
-                        onclick="event.stopPropagation();openPlaylist('${featured.id}','${featured.name.replace(/'/g, "\\'")}')">Abrir</button>
-            </div>
-        </div>`;
-
-    const homeList = document.getElementById("home-list");
-    homeList.innerHTML = "";
-    playlists.slice(1).forEach(pl => {
-        const el = document.createElement("div");
-        el.style.cssText = "display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--border);background:var(--bg-2);transition:background 0.15s;";
-        el.innerHTML = `
-            <img src="/library/playlist/${pl.id}/cover"
-                 onerror="this.style.opacity='0'"
-                 style="width:44px;height:44px;border-radius:6px;object-fit:cover;background:var(--bg-3);flex-shrink:0;">
-            <div>
-                <div class="homepage-playlist-name" style="font-size:13px;font-weight:500;color:var(--text);"></div>
-            </div>`;
-        setTextNodes(el, { ".homepage-playlist-name": pl.name });
-        el.addEventListener("mouseover", () => el.style.background = "var(--bg-hover)");
-        el.addEventListener("mouseout",  () => el.style.background = "var(--bg-2)");
-        el.addEventListener("click", () => openPlaylist(pl.id, pl.name));
-        homeList.appendChild(el);
-    });
 }
 
 // ========================
@@ -174,6 +134,7 @@ async function openPlaylist(playlistId, name) {
     currentPlaylistId = playlistId;
     localStorage.setItem("sonar_playlist_id",   playlistId);
     localStorage.setItem("sonar_playlist_name", name);
+    localStorage.setItem("sonar_view", "playlist");
  
     document.querySelectorAll(".sidebar-playlist").forEach(n => n.classList.remove("active"));
     document.querySelector(`.sidebar-playlist[data-playlist-id="${playlistId}"]`)?.classList.add("active");
@@ -2124,9 +2085,14 @@ async function openAllTracks() {
 async function restoreState() {
     const playlistId   = localStorage.getItem("sonar_playlist_id");
     const playlistName = localStorage.getItem("sonar_playlist_name");
+    const savedView    = localStorage.getItem("sonar_view") || "playlists";
     const savedTime    = parseInt(localStorage.getItem("sonar_time") || "0");
 
-    await openPlaylist(playlistId, playlistName);
+    if (savedView === "playlist" && playlistId && playlistName) {
+        await openPlaylist(playlistId, playlistName);
+    } else {
+        showView(savedView);
+    }
 
     const restored = Queue.restore();
 
@@ -2696,7 +2662,10 @@ async function openConfirmUploadModal(preview) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    loadSidebar().then(() => restoreState());
+    loadSidebar().then(() => {
+        restoreState();
+        if (typeof HomeView !== 'undefined') HomeView.reload();
+    });
     initDownloads();
     initSearch();
 
@@ -2705,3 +2674,67 @@ document.addEventListener("DOMContentLoaded", () => {
         Player.seek((e.clientX - rect.left) / rect.width);
     });
 });
+
+async function openVirtualPlaylist(name, fetchFn) {
+    const main    = document.getElementById('main');
+    const titleEl = document.getElementById('search-results-title');
+    const list    = document.getElementById('search-results-list');
+
+    main.classList.remove('show-search');
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-search').classList.add('active');
+
+    titleEl.textContent = 'Carregando...';
+    list.innerHTML      = '';
+    list.style.height   = '0px';
+
+    const tracks          = await fetchFn();
+    const downloadedTracks = tracks.filter(t => t.downloaded);
+
+    titleEl.textContent = `${name} — ${tracks.length} músicas`;
+    list.style.position = 'relative';
+    list.style.height   = `${tracks.length * getItemHeight()}px`;
+
+    tracks.forEach((track, i) => {
+        const el = document.createElement('div');
+        el.className   = 'track-item' + (track.downloaded ? '' : ' track-not-downloaded');
+        el.dataset.id  = track.id;
+        el.style.cssText = `position:absolute;top:${i * getItemHeight()}px;width:100%;`;
+        el.innerHTML = `
+            <div class="track-num">${i + 1}</div>
+            <img class="track-cover" src="/media/track/${track.id}/cover" loading="lazy" onerror="this.style.opacity='0.2'">
+            <div>
+                <div class="track-title"></div>
+                <div class="track-artist"></div>
+            </div>
+            <div class="track-album"></div>
+            <div class="track-plays" style="font-size:12px;color:var(--text-3);">${track.play_count || 0}</div>
+            <div class="track-duration">${formatDuration(track.duration_ms)}</div>
+            <div class="track-actions">
+                <button class="track-dots" data-id="${track.id}" data-yt-url="${track.youtube_url || ''}">···</button>
+            </div>`;
+
+        setTextNodes(el, {
+            '.track-title':  track.title,
+            '.track-artist': track.artist,
+            '.track-album':  track.album,
+        });
+
+        if (track.downloaded) {
+            el.addEventListener('click', () => {
+                Queue.loadPlaylist(downloadedTracks, name);
+                const qi = downloadedTracks.findIndex(t => t.id === track.id);
+                Queue.playAt(qi, true);
+                Player.play(Queue.getCurrent());
+                highlightCurrentTrack();
+            });
+        }
+
+        el.querySelector('.track-dots').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openTrackPopup(e.currentTarget, track);
+        });
+
+        list.appendChild(el);
+    });
+}

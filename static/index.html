@@ -57,15 +57,55 @@
 
     <!-- view: playlists -->
     <div class="view active" id="view-playlists">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:32px 24px 0;">
-            <div style="font-size:22px;font-weight:700;">Biblioteca</div>
-            <button class="btn btn-accent" onclick="openAllTracks()">
-                <i class="fa-solid fa-music"></i> Todas as músicas
-            </button>
+
+        <div id="home-hero">
+            <div id="home-hero-inner">
+                <div id="home-last-playlist" class="home-last-playlist-card" onclick="" title="">
+                    <img id="home-last-cover" src="" alt="">
+                    <div class="home-last-overlay">
+                        <div class="home-last-badge">Última playlist</div>
+                        <div class="home-last-name" id="home-last-name">—</div>
+                        <div class="home-last-meta" id="home-last-meta"></div>
+                    </div>
+                </div>
+
+                <div id="home-recent-playlists">
+                    <div class="home-section-header" style="padding: 0 0 12px 0;">
+                        <span class="home-section-title">Tocadas recentemente</span>
+                    </div>
+                    <div id="home-recent-playlist-list"></div>
+                </div>
+            </div>
         </div>
-        <div id="home-featured" style="padding:24px;"></div>
-        <div style="padding:0 24px 12px;font-size:11px;color:var(--text-3);text-transform:uppercase;letter-spacing:1px;">Todas as playlists</div>
-        <div id="home-list" style="padding:0 24px;display:flex;flex-direction:column;gap:8px;"></div>
+
+        <div class="home-section">
+            <div class="home-section-header">
+                <span class="home-section-title">Músicas Recentes</span>
+                <button class="home-see-all-btn" id="btn-see-recent" onclick="">Ver todas</button>
+            </div>
+            <div class="home-cards-row" id="home-recent-tracks"></div>
+        </div>
+
+        <div class="home-section">
+            <div class="home-section-header">
+                <span class="home-section-title">Mais Tocadas</span>
+                <button class="home-see-all-btn" id="btn-see-top" onclick="">Ver todas</button>
+            </div>
+            <div class="home-cards-row" id="home-top-tracks"></div>
+        </div>
+
+        <div class="home-section">
+            <div class="home-section-header">
+                <span class="home-section-title">Playlists</span>
+                <button class="home-see-all-btn btn btn-accent" onclick="openCreatePlaylistModal()">
+                    <i class="fa-solid fa-plus"></i> Nova
+                </button>
+            </div>
+            <div id="home-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+
+        <!-- mantido para compatibilidade com JS existente -->
+        <div id="home-featured" style="display:none;"></div>
     </div>
 
     <div class="view" id="view-search">
@@ -315,5 +355,6 @@
 <script src="/js/queue.js"></script>
 <script src="/js/player.js"></script>
 <script src="/js/app.js"></script>
+<script src="/js/home.js"></script>
 </body>
 </html>
