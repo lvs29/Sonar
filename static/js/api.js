@@ -231,7 +231,9 @@ async function uploadTrackCover(id, file) {
         method: "POST",
         body: form,
     });
-    return r.json();
+    const result = await r.json();
+    if (!r.ok || result.error) throw new Error(result.error || r.statusText);
+    return result;
 }
 
 async function setTrackCoverUrl(id, url) {
@@ -240,7 +242,9 @@ async function setTrackCoverUrl(id, url) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cover_url: url }),
     });
-    return r.json();
+    const result = await r.json();
+    if (!r.ok || result.error) throw new Error(result.error || r.statusText);
+    return result;
 }
 
 async function fetchArtists(q) {

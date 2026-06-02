@@ -11,6 +11,7 @@ from services.library import (
 from services.downloader import enqueue_playlist, get_queue_status, set_youtube_url, add_youtube_track
 import json
 import os
+import requests
 import time as time_module
 from datetime import datetime, timezone
 from models import Session, Playlist, Track, PlaylistTrack, DownloadJob
@@ -513,11 +514,15 @@ def upload_track_cover(id):
             return jsonify({"error": "não encontrada"}), 404
 
         # via URL - baixa imagem localmente
-        if request.is_json:
-            url = request.get_json().get("cover_url", "").strip()
-            if not url:
-                return jsonify({"error": "url obrigatória"}), 400
+        data = request.get_json(silent=True) or {}
+        if not data and request.data:
+            try:
+                data = json.loads(request.data.decode("utf-8"))
+            except Exception:
+                data = {}
 
+        url = (data.get("cover_url") or "").strip()
+        if url:
             # baixa a imagem
             try:
                 import requests as req
@@ -546,7 +551,7 @@ def upload_track_cover(id):
 
         # via upload
         if "file" not in request.files:
-            return jsonify({"error": "arquivo obrigatório"}), 400
+            return jsonify({"error": "url obrigatória"}), 400
 
         file = request.files["file"]
 

@@ -228,9 +228,6 @@ const Player = (() => {
         if (track) play(track);
     });
 
-    // init volume
-    setVolume(0.5);
-
     // Media Session API - handlers de ação
     if ("mediaSession" in navigator) {
         navigator.mediaSession.setActionHandler("play", () => {

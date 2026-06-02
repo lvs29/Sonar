@@ -477,9 +477,10 @@ def _download_track(job_id: int):
         if not os.path.exists(mp3_full):
             raise Exception("mp3 não foi criado")
 
-        # baixa capa do thumbnail com deduplicação
+        # Baixa capa do thumbnail apenas se a track não tiver cover original.
+        # Se a função vier de um update de track, preserva sempre o cover existente.
         cover_hash = None
-        if match.get("thumbnail"):
+        if track.cover_hash is None and match.get("thumbnail"):
             try:
                 import requests as req
                 img = req.get(match["thumbnail"], timeout=10)
@@ -489,7 +490,8 @@ def _download_track(job_id: int):
                 pass
 
         track.mp3_path    = mp3_path
-        track.cover_hash  = cover_hash
+        if cover_hash is not None:
+            track.cover_hash = cover_hash
         track.downloaded  = True
         track.youtube_id  = match["id"]
         track.youtube_url = match["url"]

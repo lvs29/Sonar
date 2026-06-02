@@ -1245,24 +1245,28 @@ function openTrackPopup(btn, track) {
             const coverFile = sub.querySelector("#sub-cover-file").files[0];
             const coverUrl_ = sub.querySelector("#sub-cover-url").value.trim();
 
-            await updateTrack(track.id, { title, artist, album });
+            try {
+                await updateTrack(track.id, { title, artist, album });
 
-            if (coverFile) await uploadTrackCover(track.id, coverFile);
-            else if (coverUrl_) await setTrackCoverUrl(track.id, coverUrl_);
+                if (coverFile) await uploadTrackCover(track.id, coverFile);
+                else if (coverUrl_) await setTrackCoverUrl(track.id, coverUrl_);
 
-            // atualiza na lista
-            const trackEl = document.querySelector(`[data-id="${track.id}"]`);
-            if (trackEl) {
-                setTextNodes(trackEl, {
-                    ".track-title":  title  || track.title,
-                    ".track-artist": artist || track.artist,
-                    ".track-album":  album  || track.album,
-                });
-                const coverImg = trackEl.querySelector(".track-cover");
-                if (coverImg) coverImg.src = `${coverUrl(track.id)}?t=${Date.now()}`;
+                // atualiza na lista
+                const trackEl = document.querySelector(`[data-id="${track.id}"]`);
+                if (trackEl) {
+                    setTextNodes(trackEl, {
+                        ".track-title":  title  || track.title,
+                        ".track-artist": artist || track.artist,
+                        ".track-album":  album  || track.album,
+                    });
+                    const coverImg = trackEl.querySelector(".track-cover");
+                    if (coverImg) coverImg.src = `${coverUrl(track.id)}?t=${Date.now()}`;
+                }
+
+                closeAllPopups();
+            } catch (err) {
+                alert(`Erro ao salvar capa da track: ${err.message}`);
             }
-
-            closeAllPopups();
         });
     });
 
