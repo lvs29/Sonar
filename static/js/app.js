@@ -216,7 +216,7 @@ async function openPlaylist(playlistId, name) {
     renderTrackList(tracks, downloadedTracks, playlistId);
 }
 
-function renderTrackList(allTracks, downloadedTracks, playlistId) {
+function renderTrackList(allTracks, downloadedTracks, playlistId=null) {
     const container = document.getElementById("track-list");
     const main      = document.getElementById("main");
 
@@ -2679,7 +2679,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-async function openVirtualPlaylist(name, fetchFn) {
+async function openVirtualPlaylist(name, fetchFnOrTracks) {
     const main    = document.getElementById('main');
     const titleEl = document.getElementById('search-results-title');
     const list    = document.getElementById('search-results-list');
@@ -2692,8 +2692,17 @@ async function openVirtualPlaylist(name, fetchFn) {
     list.innerHTML      = '';
     list.style.height   = '0px';
 
-    const tracks          = await fetchFn();
-    const downloadedTracks = tracks.filter(t => t.downloaded);
+    const tracks = typeof fetchFnOrTracks === 'function'
+        ? await fetchFnOrTracks()
+        : fetchFnOrTracks || [];
+    const downloadedTracks = Array.isArray(tracks)
+        ? tracks.filter(t => t.downloaded)
+        : [];
+
+    if (!Array.isArray(tracks)) {
+        titleEl.textContent = `${name} — 0 músicas`;
+        return;
+    }
 
     titleEl.textContent = `${name} — ${tracks.length} músicas`;
     list.style.position = 'relative';
@@ -2742,3 +2751,5 @@ async function openVirtualPlaylist(name, fetchFn) {
         list.appendChild(el);
     });
 }
+
+window.openVirtualPlaylist = openVirtualPlaylist;

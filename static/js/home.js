@@ -1,6 +1,4 @@
 // static/js/home.js
-// Renderiza a home page: hero (última playlist + recentes), músicas recentes, mais tocadas.
-// Depende de: api.js, player.js, app.js (showPlaylist, playPlaylist, openAllTracks)
 
 (function () {
     'use strict';
@@ -174,20 +172,37 @@
     }
 
     function bindSeeAllButtons() {
+        const btnAll    = document.getElementById('btn-see-all');
         const btnRecent = document.getElementById('btn-see-recent');
         const btnTop    = document.getElementById('btn-see-top');
 
+        if (btnAll) {
+            btnAll.onclick = async () => {
+                try {
+                    await openAllTracks();
+                } catch (err) {
+                    console.error('Erro ao abrir todas as músicas:', err);
+                }
+            };
+        }
+
         if (btnRecent) {
             btnRecent.onclick = async () => {
-                const tracks = await fetchRecentTracks();
-                openVirtualPlaylist('Músicas Recentes', tracks);
+                try {
+                    await openVirtualPlaylist('Tocadas Recentemente', fetchRecentTracks);
+                } catch (err) {
+                    console.error('Erro ao abrir recentes:', err);
+                }
             };
         }
 
         if (btnTop) {
             btnTop.onclick = async () => {
-                const tracks = await fetchTopTracks();
-                openVirtualPlaylist('Mais Tocadas', tracks);
+                try {
+                    await openVirtualPlaylist('Mais Tocadas', fetchTopTracks);
+                } catch (err) {
+                    console.error('Erro ao abrir mais tocadas:', err);
+                }
             };
         }
     }

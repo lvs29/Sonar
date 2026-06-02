@@ -1408,6 +1408,14 @@ body {
     align-items: stretch;
 }
 
+#home-hero-inner .home-hero-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
 #home-recent-playlists {
     display: flex;
     flex-direction: column;
