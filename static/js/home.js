@@ -98,7 +98,7 @@
     function renderRecentTracks(tracks) {
         const container = document.getElementById('home-recent-tracks');
         if (!container) return;
-        const slice = tracks.slice(0, 5);
+        const slice = tracks.slice(0, 6);
         if (!slice.length) { container.innerHTML = ''; return; }
         replaceSkeleton(container, slice.map(t => makeTrackCard(t, slice)));
     }
@@ -108,14 +108,21 @@
     function renderTopTracks(tracks) {
         const container = document.getElementById('home-top-tracks');
         if (!container) return;
-        const slice = tracks.slice(0, 5);
+        const slice = tracks.slice(0, 6);
         if (!slice.length) { container.innerHTML = ''; return; }
-        replaceSkeleton(container, slice.map(t => makeTrackCard(t, slice)));
+        replaceSkeleton(container, slice.map(t => makeTrackCard(t, slice, { showPlayCount: true })));
     }
 
     // ── Card de música ────────────────────────────────────────────────────
 
-    function makeTrackCard(track, context) {
+    const MAX_ARTIST_NAME_LENGTH = 24;
+
+    function truncateText(text, maxLength) {
+        if (!text) return '';
+        return text.length <= maxLength ? text : text.slice(0, maxLength - 1) + '…';
+    }
+
+    function makeTrackCard(track, context, options = {}) {
         const div = document.createElement('div');
         div.className = 'home-track-card';
 
@@ -131,11 +138,18 @@
 
         const sub = document.createElement('div');
         sub.className = 'home-track-card-sub';
-        sub.textContent = track.artist || '';
+        sub.textContent = truncateText(track.artist || '', MAX_ARTIST_NAME_LENGTH);
 
         div.appendChild(img);
         div.appendChild(title);
         div.appendChild(sub);
+
+        if (options.showPlayCount) {
+            const plays = document.createElement('div');
+            plays.className = 'home-track-card-plays';
+            plays.textContent = `${track.play_count || 0} plays`;
+            div.appendChild(plays);
+        }
 
         div.onclick = () => {
             const idx = context.indexOf(track);

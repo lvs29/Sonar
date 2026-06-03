@@ -173,8 +173,13 @@ async function openPlaylist(playlistId, name) {
         descEl.style.display  = meta.description ? "block" : "none";
     }
  
+    const totalMs = tracks.reduce((sum, t) => sum + (t.duration_ms || 0), 0);
+    const totalSeconds = Math.floor(totalMs / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const durationStr = `${hours}h${minutes.toString().padStart(2, '0')}min`;
     document.getElementById("pl-meta").textContent =
-        `${tracks.length} músicas · ${downloadedTracks.length} disponíveis`;
+        `${tracks.length} músicas · ${downloadedTracks.length} disponíveis · ${durationStr}`;
  
     document.getElementById("pl-cover").src      = `/library/playlist/${playlistId}/cover`;
     document.getElementById("pl-cover").onerror  = () => {};
