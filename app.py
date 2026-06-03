@@ -23,4 +23,4 @@ def create_app():
 if __name__ == "__main__":
     cfg = load_config()
     app = create_app()
-    app.run(host=cfg["host"], port=cfg["port"])
+    app.run(host=cfg["host"], port=cfg["port"], debug=True)

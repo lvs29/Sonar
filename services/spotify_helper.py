@@ -38,7 +38,11 @@ def get_spotify_metadata(spotify_url: str) -> dict:
         
         # Extrai informações básicas
         title = entity.get("name", "Sem título")
-        duration_ms = entity.get("duration", {}).get("totalMilliseconds", 0)
+        duration_raw = entity.get("duration", 0)
+        if isinstance(duration_raw, dict):
+            duration_ms = duration_raw.get("totalMilliseconds", 0)
+        else:
+            duration_ms = duration_raw or 0
         
         # Artista(s)
         artists = entity.get("artists", [])
