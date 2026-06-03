@@ -25,7 +25,7 @@
     function renderHero(playlists) {
         if (!playlists.length) return;
 
-        const pl      = playlists[playlists.length - 1];
+        const pl      = playlists[0];
         const card    = document.getElementById('home-last-playlist');
         const coverEl = document.getElementById('home-last-cover');
         const nameEl  = document.getElementById('home-last-name');
@@ -214,15 +214,20 @@ async function init() {
         if (!card) return;
 
         try {
-            const [playlists, recentPlaylists, recentTracks, topTracks] = await Promise.all([
-                fetchPlaylists(),
+            const [playlists, recentTracks, topTracks] = await Promise.all([
                 fetchRecentPlaylists(),
                 fetchRecentTracks(),
                 fetchTopTracks(),
             ]);
 
-            renderHero(playlists);
-            renderRecentPlaylists(recentPlaylists);
+            // playlists já vem ordenado por last_opened desc (nulls last) do servidor
+            // hero = primeira (mais recente com last_opened), grid = as que cabem
+            const withPlayed  = playlists.filter(p => p.last_opened);
+            const heroList    = withPlayed.length ? withPlayed : playlists;
+            const recentSlice = withPlayed.slice(1, 7);
+
+            renderHero(heroList);
+            renderRecentPlaylists(recentSlice);
             renderRecentTracks(recentTracks);
             renderTopTracks(topTracks);
             renderAllPlaylists(playlists);

@@ -276,7 +276,7 @@ const Queue = (() => {
             shuffleOn          = data.shuffleOn          || false;
             loopPlaylist       = data.loopPlaylist       || false;
             currentPlaylistId  = data.currentPlaylistId  || null;
-            currentPlaylistType= data.currentPlaylistType || null;
+            currentPlaylistType= data.currentPlaylistType || (currentPlaylistId ? "playlist" : null);
             return getCurrent() !== null;
         } catch (e) {
             return false;

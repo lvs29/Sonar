@@ -164,9 +164,10 @@ def list_playlists():
     try:
         playlists = session.query(Playlist).all()
         return jsonify([{
-            "id":   p.id,
-            "name":         p.name,
-            "description":  p.description or "",
+            "id":          p.id,
+            "name":        p.name,
+            "description": p.description or "",
+            "last_opened": p.last_opened.isoformat() if p.last_opened else None,
         } for p in playlists])
     finally:
         session.close()
@@ -926,13 +927,13 @@ def tracks_top():
  
 @library_bp.route("/playlists/recent")
 def playlists_recent():
-    """7 playlists abertas mais recentemente (last_opened desc)."""
+    """playlists tocadas mais recentemente (last_opened desc)."""
     session = Session()
     try:
         playlists = session.query(Playlist)\
             .filter(Playlist.last_opened.isnot(None))\
             .order_by(Playlist.last_opened.desc())\
-            .limit(7).all()
+            .all()
         return jsonify([_playlist_dict(p) for p in playlists])
     finally:
         session.close()
