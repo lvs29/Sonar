@@ -2065,7 +2065,7 @@ async function openAllTracks() {
 
         if (track.downloaded) {
             el.addEventListener("click", () => {
-                Queue.loadPlaylist(downloadedTracks, "all");
+                Queue.loadPlaylist(downloadedTracks, "all", "virtual");
                 const qi = downloadedTracks.findIndex(t => t.id === track.id);
                 Queue.playAt(qi, true);
                 Player.play(Queue.getCurrent());
@@ -2372,7 +2372,7 @@ function initSearch() {
  
                     if (track.downloaded) {
                         el.addEventListener("click", () => {
-                            Queue.loadPlaylist(downloadedTracks, "search");
+                            Queue.loadPlaylist(downloadedTracks, "search", "virtual");
                             const qi = downloadedTracks.findIndex(t => t.id === track.id);
                             Queue.playAt(qi, true);
                             Player.play(Queue.getCurrent());
@@ -2735,7 +2735,7 @@ async function openVirtualPlaylist(name, fetchFnOrTracks) {
 
         if (track.downloaded) {
             el.addEventListener('click', () => {
-                Queue.loadPlaylist(downloadedTracks, name);
+                Queue.loadPlaylist(downloadedTracks, name, "virtual");
                 const qi = downloadedTracks.findIndex(t => t.id === track.id);
                 Queue.playAt(qi, true);
                 Player.play(Queue.getCurrent());

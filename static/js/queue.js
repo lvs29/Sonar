@@ -8,6 +8,7 @@ const Queue = (() => {
     let shuffleOn         = false;
     let loopPlaylist      = false;
     let currentPlaylistId = null;
+    let currentPlaylistType = null;
     let currentManualTrack = null;
 
     function getActive() {
@@ -36,12 +37,13 @@ const Queue = (() => {
         return { manual, playlist: fromPl };
     }
 
-    function loadPlaylist(tracks, playlistId) {
-        playlistTracks    = tracks;
-        shuffledTracks    = _shuffle([...tracks]);
-        manualTracks      = [];
-        currentIndex      = -1;
-        currentPlaylistId = playlistId;
+    function loadPlaylist(tracks, playlistId, playlistType = "playlist") {
+        playlistTracks      = tracks;
+        shuffledTracks      = _shuffle([...tracks]);
+        manualTracks        = [];
+        currentIndex        = -1;
+        currentPlaylistId   = playlistId;
+        currentPlaylistType = playlistType;
         _save();
         _emit("queueChanged");
     }
@@ -256,6 +258,7 @@ const Queue = (() => {
                 shuffleOn,
                 loopPlaylist,
                 currentPlaylistId,
+                currentPlaylistType,
             }));
         } catch (e) {}
     }
@@ -273,6 +276,7 @@ const Queue = (() => {
             shuffleOn          = data.shuffleOn          || false;
             loopPlaylist       = data.loopPlaylist       || false;
             currentPlaylistId  = data.currentPlaylistId  || null;
+            currentPlaylistType= data.currentPlaylistType || null;
             return getCurrent() !== null;
         } catch (e) {
             return false;
@@ -314,5 +318,6 @@ const Queue = (() => {
         get loopPlaylist()      { return loopPlaylist; },
         get playlistTracks()    { return playlistTracks; },
         get currentPlaylistId() { return currentPlaylistId; },
+        get currentPlaylistType() { return currentPlaylistType; },
     };
 })();

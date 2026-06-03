@@ -314,6 +314,6 @@ async function fetchRecentPlaylists() {
     return (await r.json()).map(sanitizePlaylist);
 }
  
-async function playlistOpened(playlistId) {
-    await fetch(`${API}/library/playlist/${playlistId}/opened`, { method: "POST" });
+async function playlistPlayed(playlistId) {
+    await fetch(`${API}/library/playlist/${playlistId}/played`, { method: "POST" });
 }

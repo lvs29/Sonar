@@ -937,8 +937,8 @@ def playlists_recent():
     finally:
         session.close()
 
-@library_bp.route("/playlist/<playlist_id>/opened", methods=["POST"])
-def playlist_opened(playlist_id):
+@library_bp.route("/playlist/<playlist_id>/played", methods=["POST"])
+def playlist_played(playlist_id):
     session = Session()
     try:
         pl = session.get(Playlist, playlist_id)

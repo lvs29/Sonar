@@ -129,6 +129,12 @@ const Player = (() => {
         _setPlaying(true);
         localStorage.setItem("sonar_time", "0");
         trackPlayed(track.id, false);
+
+        if (Queue.currentPlaylistType === "playlist" && Queue.currentPlaylistId) {
+            playlistPlayed(Queue.currentPlaylistId).catch(err => {
+                console.error("Erro ao atualizar playlist como tocada:", err);
+            });
+        }
     }
 
     function togglePlay() {
