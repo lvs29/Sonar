@@ -196,6 +196,24 @@ async function confirmUpload(data, playlistIds = []) {
     return r.json();
 }
 
+async function addSpotifyTrack(spotifyUrl) {
+    const r = await fetch(`${API}/library/spotify/search`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spotify_url: spotifyUrl }),
+    });
+    return r.json();
+}
+
+async function confirmSpotifyTrack(data, playlistIds = []) {
+    const r = await fetch(`${API}/library/track/add-spotify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...data, playlist_ids: playlistIds }),
+    });
+    return r.json();
+}
+
 async function uploadPlaylistCover(playlistId, file) {
     const form = new FormData();
     form.append("file", file);

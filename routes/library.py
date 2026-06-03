@@ -736,6 +736,45 @@ def add_youtube_track_route():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
+@library_bp.route("/spotify/search", methods=["POST"])
+def search_spotify():
+    """
+    Etapa 1: recebe URL do Spotify e retorna preview com metadados.
+    """
+    from services.spotify_helper import get_spotify_metadata
+    
+    data = request.get_json()
+    spotify_url = data.get("spotify_url", "").strip()
+    
+    if not spotify_url:
+        return jsonify({"error": "spotify_url obrigatória"}), 400
+    
+    try:
+        result = get_spotify_metadata(spotify_url)
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 400
+
+@library_bp.route("/track/add-spotify", methods=["POST"])
+def add_spotify_track_route():
+    """
+    Etapa 2: recebe dados do Spotify, busca no YouTube, cria track real e enfileira.
+    """
+    from services.spotify_helper import confirm_spotify_track
+    
+    data = request.get_json()
+    playlist_ids = data.pop("playlist_ids", [])
+    
+    try:
+        result = confirm_spotify_track(data, playlist_ids)
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
 @library_bp.route("/track/upload", methods=["POST"])
 def upload_track():
     from services.downloader import add_local_track

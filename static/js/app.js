@@ -1185,7 +1185,7 @@ function openTrackPopup(btn, track) {
                         </button>
                         <div style="display:flex;gap:4px;">
                             <input id="sub-cover-url" class="track-popup-input" placeholder="URL..." style="margin:0;font-size:11px;flex:1;">
-                            <button class="btn" id="sub-spotify-fetch" style="font-size:11px;padding:3px 6px;flex-shrink:0;" title="Buscar capa do Spotify">
+                            <button class="btn" id="sub-spotify-fetch" style="font-size:11px;padding:3px 6px;flex-shrink:0;">
                                 <i class="fa-solid fa-magnifying-glass"></i>
                             </button>
                         </div>
@@ -2291,18 +2291,47 @@ function initSearch() {
                 list.innerHTML       = "";
                 list.style.height    = "auto";
                 list.style.position  = "static";
- 
-                const results = await fetchYoutubeSearch(query);
- 
-                if (thisRequestId !== searchRequestId) return;
- 
-                if (!results.length || results.error) {
-                    titleEl.textContent = `Nenhum resultado para "${query}"`;
-                    return;
+
+                let results = [];
+
+                // Detecta se é URL do Spotify
+                const isSpotifyUrl = /spotify\.com\/track\//.test(query);
+
+                if (isSpotifyUrl) {
+                    const spotifyResult = await addSpotifyTrack(query);
+
+                    if (thisRequestId !== searchRequestId) return;
+
+                    if (spotifyResult.error) {
+                        titleEl.textContent = `Erro: ${spotifyResult.error}`;
+                        return;
+                    }
+
+                    results = [{
+                        title:       spotifyResult.title,
+                        artist:      spotifyResult.artist,
+                        album:       spotifyResult.album,
+                        duration_ms: spotifyResult.duration_ms,
+                        cover_url:   spotifyResult.cover_url,
+                        thumbnail:   spotifyResult.cover_url,
+                        isSpotify:   true,
+                        spotifyData: spotifyResult
+                    }];
+
+                    titleEl.textContent = `Spotify: ${spotifyResult.title}`;
+                } else {
+                    results = await fetchYoutubeSearch(query);
+
+                    if (thisRequestId !== searchRequestId) return;
+
+                    if (!results.length || results.error) {
+                        titleEl.textContent = `Nenhum resultado para "${query}"`;
+                        return;
+                    }
+
+                    titleEl.textContent = `${results.length} resultado${results.length !== 1 ? "s" : ""} para "${query}"`;
                 }
- 
-                titleEl.textContent = `${results.length} resultado${results.length !== 1 ? "s" : ""} para "${query}"`;
- 
+
                 results.forEach(r => {
                     const el = document.createElement("div");
                     el.className     = "track-item";
@@ -2453,7 +2482,7 @@ async function openCreatePlaylistModal() {
     }
 }
 
-async function openAddToPlaylistModal(ytTrack) {
+async function openAddToPlaylistModal(trackData) {
     const playlists = await fetchPlaylists();
 
     const overlay = document.createElement("div");
@@ -2462,7 +2491,7 @@ async function openAddToPlaylistModal(ytTrack) {
         <div class="modal">
             <div class="modal-title">Adicionar à playlist</div>
             <div class="modal-body">
-                <div id="yt-track-title" style="font-size:13px;color:var(--text);margin-bottom:12px;font-weight:500;"></div>
+                <div id="track-title" style="font-size:13px;color:var(--text);margin-bottom:12px;font-weight:500;"></div>
                 <div style="font-size:12px;color:var(--text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">
                     Playlists
                 </div>
@@ -2489,7 +2518,7 @@ async function openAddToPlaylistModal(ytTrack) {
 
     // Preenche os campos de texto de forma segura
     setTextNodes(overlay, {
-        "#yt-track-title": ytTrack.title
+        "#track-title": trackData.title
     });
 
     // Preenche os nomes das playlists
@@ -2510,11 +2539,19 @@ async function openAddToPlaylistModal(ytTrack) {
 
         overlay.remove();
 
-        const result = await addYoutubeTrack(ytTrack.youtube_url, checked, {
-            title:       ytTrack.title,
-            artist:      ytTrack.artist,
-            duration_ms: ytTrack.duration_ms,
-        });
+        let result;
+        
+        if (trackData.isSpotify) {
+            // Fluxo Spotify
+            result = await confirmSpotifyTrack(trackData.spotifyData, checked);
+        } else {
+            // Fluxo YouTube
+            result = await addYoutubeTrack(trackData.youtube_url, checked, {
+                title:       trackData.title,
+                artist:      trackData.artist,
+                duration_ms: trackData.duration_ms,
+            });
+        }
 
         if (result.status === "ok") {
             await loadSidebar();
